@@ -10,7 +10,8 @@ import {
 } from 'lucide-react';
 import { useFinance } from '../../context/FinanceContext';
 import { Transaction, TransactionType, Category, Contact } from '../../types/finance';
-import { getMonthName, getMonthKey } from '../../utils/date';
+import { getMonthName, getMonthKey, getTodayString } from '../../utils/date';
+import { escapeCsvField } from '../../utils/csv';
 import { useStaggerChildren } from '../../hooks/useStaggerChildren';
 import { useMediaQuery } from '../../hooks/useMediaQuery';
 import { useWindowVirtualizer } from '../../hooks/useWindowVirtualizer';
@@ -474,22 +475,17 @@ export const TransactionListView: React.FC<TransactionListViewProps> = React.mem
       return;
     }
     const headers = ['Date', 'Type', 'Amount (INR)', 'Description', 'Person', 'Category', 'Payment Method', 'Reference ID', 'Source'];
-    const escapeField = (val: string | number | undefined | null) => {
-      if (val === undefined || val === null) return '""';
-      const str = String(val);
-      return `"${str.replace(/"/g, '""')}"`;
-    };
 
     const rows = filteredTransactions.map(t => [
-      escapeField(t.date),
-      escapeField(t.type),
-      escapeField(t.amount.toFixed(2)),
-      escapeField(t.description),
-      escapeField(t.person || '—'),
-      escapeField(t.category),
-      escapeField(t.paymentMethod),
-      escapeField(t.referenceId || '—'),
-      escapeField(t.source),
+      escapeCsvField(t.date, false),
+      escapeCsvField(t.type, false),
+      escapeCsvField(t.amount.toFixed(2), false),
+      escapeCsvField(t.description, true),
+      escapeCsvField(t.person || '—', true),
+      escapeCsvField(t.category, true),
+      escapeCsvField(t.paymentMethod, true),
+      escapeCsvField(t.referenceId || '—', true),
+      escapeCsvField(t.source, true),
     ]);
 
     const csvContent = [headers.join(','), ...rows.map(e => e.join(','))].join('\r\n');
@@ -497,7 +493,7 @@ export const TransactionListView: React.FC<TransactionListViewProps> = React.mem
     const url = URL.createObjectURL(blob);
     const link = document.createElement('a');
     link.setAttribute('href', url);
-    link.setAttribute('download', `dhanveda_transactions_${new Date().toISOString().split('T')[0]}.csv`);
+    link.setAttribute('download', `dhanveda_transactions_${getTodayString()}.csv`);
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);

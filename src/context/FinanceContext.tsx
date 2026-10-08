@@ -1103,51 +1103,69 @@ export const FinanceProvider: React.FC<{ children: React.ReactNode }> = ({ child
  transactionsRef.current = transactionsRef.current.filter(t => t.id !== id);
  setTransactions(prev => prev.filter(t => t.id !== id));
 
- // Clean up or detach settlements tied to this transaction
- const now = new Date().toISOString();
- const updatedSettlements: SettlementRecord[] = [];
+    // Clean up or detach settlements tied to this transaction
+    // B-10: Only create a new settlement object when a field actually changes (and bump updatedAt).
+    // Untouched settlements keep their existing object references so scheduleArrayPersist skips IDB puts.
+    const now = new Date().toISOString();
+    const updatedSettlements: SettlementRecord[] = [];
 
- settlementsRef.current.forEach(s => {
- const linkedTxId = s.linkedTransactionId === id ? undefined : s.linkedTransactionId;
+    settlementsRef.current.forEach(s => {
+      // Check multi-split reconciliation
+      if (s.reconciledSplits && s.reconciledSplits.length > 0) {
+        const remainingSplits = s.reconciledSplits.filter(r => r.transactionId !== id);
+        if (remainingSplits.length === 0 && (s.sourceTransactionId === id || !s.sourceTransactionId)) {
+          // All reconciled splits belonged to this deleted transaction -> delete settlement
+          addTombstone('settlements', s.id);
+          return;
+        }
 
- // Check multi-split reconciliation
- if (s.reconciledSplits && s.reconciledSplits.length > 0) {
- const remainingSplits = s.reconciledSplits.filter(r => r.transactionId !== id);
- if (remainingSplits.length === 0 && (s.sourceTransactionId === id || !s.sourceTransactionId)) {
- // All reconciled splits belonged to this deleted transaction -> delete settlement
- addTombstone('settlements', s.id);
- return;
- }
- // Partial removal: some splits remain on other transactions!
- const nextSourceTx = s.sourceTransactionId === id
- ? (remainingSplits[0]?.transactionId || undefined)
- : s.sourceTransactionId;
- const nextSourceSplit = s.sourceTransactionId === id
- ? (remainingSplits[0]?.splitEntryId || undefined)
- : s.sourceSplitEntryId;
+        const hasSplitChanged = remainingSplits.length !== s.reconciledSplits.length;
+        const hasLinkedChanged = s.linkedTransactionId === id;
+        const hasSourceChanged = s.sourceTransactionId === id;
 
- updatedSettlements.push({
- ...s,
- sourceTransactionId: nextSourceTx,
- sourceSplitEntryId: nextSourceSplit,
- linkedTransactionId: linkedTxId,
- reconciledSplits: remainingSplits.length > 0 ? remainingSplits : undefined,
- updatedAt: now,
- });
- return;
- }
+        if (hasSplitChanged || hasLinkedChanged || hasSourceChanged) {
+          // Partial removal: some splits remain on other transactions or links changed
+          const nextSourceTx = hasSourceChanged
+            ? (remainingSplits[0]?.transactionId || undefined)
+            : s.sourceTransactionId;
+          const nextSourceSplit = hasSourceChanged
+            ? (remainingSplits[0]?.splitEntryId || undefined)
+            : s.sourceSplitEntryId;
 
- // Legacy single-split settlement
- if (s.sourceTransactionId === id) {
- addTombstone('settlements', s.id);
- return;
- }
+          updatedSettlements.push({
+            ...s,
+            sourceTransactionId: nextSourceTx,
+            sourceSplitEntryId: nextSourceSplit,
+            linkedTransactionId: hasLinkedChanged ? undefined : s.linkedTransactionId,
+            reconciledSplits: remainingSplits.length > 0 ? remainingSplits : undefined,
+            updatedAt: now,
+          });
+          return;
+        }
 
- updatedSettlements.push({
- ...s,
- linkedTransactionId: linkedTxId,
- });
- });
+        // Untouched multi-split settlement: retain existing object reference
+        updatedSettlements.push(s);
+        return;
+      }
+
+      // Legacy single-split settlement
+      if (s.sourceTransactionId === id) {
+        addTombstone('settlements', s.id);
+        return;
+      }
+
+      if (s.linkedTransactionId === id) {
+        updatedSettlements.push({
+          ...s,
+          linkedTransactionId: undefined,
+          updatedAt: now,
+        });
+        return;
+      }
+
+      // Untouched settlement: retain existing object reference
+      updatedSettlements.push(s);
+    });
 
  settlementsRef.current = updatedSettlements;
  setSettlements(updatedSettlements);
@@ -1160,46 +1178,63 @@ export const FinanceProvider: React.FC<{ children: React.ReactNode }> = ({ child
  transactionsRef.current = transactionsRef.current.filter(t => !set.has(t.id));
  setTransactions(prev => prev.filter(t => !set.has(t.id)));
 
- const now = new Date().toISOString();
- const updatedSettlements: SettlementRecord[] = [];
+    // B-10: Only create a new settlement object when a field actually changes (and bump updatedAt)
+    const now = new Date().toISOString();
+    const updatedSettlements: SettlementRecord[] = [];
 
- settlementsRef.current.forEach(s => {
- const linkedTxId = s.linkedTransactionId && set.has(s.linkedTransactionId) ? undefined : s.linkedTransactionId;
+    settlementsRef.current.forEach(s => {
+      if (s.reconciledSplits && s.reconciledSplits.length > 0) {
+        const remainingSplits = s.reconciledSplits.filter(r => !set.has(r.transactionId));
+        if (remainingSplits.length === 0 && (s.sourceTransactionId ? set.has(s.sourceTransactionId) : true)) {
+          addTombstone('settlements', s.id);
+          return;
+        }
 
- if (s.reconciledSplits && s.reconciledSplits.length > 0) {
- const remainingSplits = s.reconciledSplits.filter(r => !set.has(r.transactionId));
- if (remainingSplits.length === 0 && (s.sourceTransactionId ? set.has(s.sourceTransactionId) : true)) {
- addTombstone('settlements', s.id);
- return;
- }
- const nextSourceTx = s.sourceTransactionId && set.has(s.sourceTransactionId)
- ? (remainingSplits[0]?.transactionId || undefined)
- : s.sourceTransactionId;
- const nextSourceSplit = s.sourceTransactionId && set.has(s.sourceTransactionId)
- ? (remainingSplits[0]?.splitEntryId || undefined)
- : s.sourceSplitEntryId;
+        const hasSplitChanged = remainingSplits.length !== s.reconciledSplits.length;
+        const hasLinkedChanged = Boolean(s.linkedTransactionId && set.has(s.linkedTransactionId));
+        const hasSourceChanged = Boolean(s.sourceTransactionId && set.has(s.sourceTransactionId));
 
- updatedSettlements.push({
- ...s,
- sourceTransactionId: nextSourceTx,
- sourceSplitEntryId: nextSourceSplit,
- linkedTransactionId: linkedTxId,
- reconciledSplits: remainingSplits.length > 0 ? remainingSplits : undefined,
- updatedAt: now,
- });
- return;
- }
+        if (hasSplitChanged || hasLinkedChanged || hasSourceChanged) {
+          const nextSourceTx = hasSourceChanged
+            ? (remainingSplits[0]?.transactionId || undefined)
+            : s.sourceTransactionId;
+          const nextSourceSplit = hasSourceChanged
+            ? (remainingSplits[0]?.splitEntryId || undefined)
+            : s.sourceSplitEntryId;
 
- if (s.sourceTransactionId && set.has(s.sourceTransactionId)) {
- addTombstone('settlements', s.id);
- return;
- }
+          updatedSettlements.push({
+            ...s,
+            sourceTransactionId: nextSourceTx,
+            sourceSplitEntryId: nextSourceSplit,
+            linkedTransactionId: hasLinkedChanged ? undefined : s.linkedTransactionId,
+            reconciledSplits: remainingSplits.length > 0 ? remainingSplits : undefined,
+            updatedAt: now,
+          });
+          return;
+        }
 
- updatedSettlements.push({
- ...s,
- linkedTransactionId: linkedTxId,
- });
- });
+        // Untouched multi-split settlement: retain existing object reference
+        updatedSettlements.push(s);
+        return;
+      }
+
+      if (s.sourceTransactionId && set.has(s.sourceTransactionId)) {
+        addTombstone('settlements', s.id);
+        return;
+      }
+
+      if (s.linkedTransactionId && set.has(s.linkedTransactionId)) {
+        updatedSettlements.push({
+          ...s,
+          linkedTransactionId: undefined,
+          updatedAt: now,
+        });
+        return;
+      }
+
+      // Untouched settlement: retain existing object reference
+      updatedSettlements.push(s);
+    });
 
  settlementsRef.current = updatedSettlements;
  setSettlements(updatedSettlements);
