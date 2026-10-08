@@ -23,6 +23,7 @@ import { AIProvider } from '../../types/finance';
 import { DEFAULT_AI_MODELS } from '../../services/aiService';
 import { googleAuthService } from '../../services/googleAuth';
 import { GoogleSyncSetupModal } from './GoogleSyncSetupModal';
+import { getTodayString } from '../../utils/date';
 import { StatementImportView } from '../import/StatementImportView';
 import { useToast } from '../../context/ToastContext';
 
@@ -206,7 +207,7 @@ export const SettingsView: React.FC = () => {
  const url = URL.createObjectURL(blob);
  const a = document.createElement('a');
  a.href = url;
- a.download = `dhanveda_backup_${new Date().toISOString().split('T')[0]}.json`;
+ a.download = `dhanveda_backup_${getTodayString()}.json`;
  a.click();
  URL.revokeObjectURL(url);
  };

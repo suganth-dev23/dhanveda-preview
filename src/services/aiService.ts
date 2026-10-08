@@ -141,11 +141,14 @@ export async function generateFinancialSummary(
   try {
     if (provider === 'gemini') {
       const selectedModel = resolveAIModel(provider, model);
-      const endpoint = `https://generativelanguage.googleapis.com/v1beta/models/${selectedModel}:generateContent?key=${apiKey.trim()}`;
+      const endpoint = `https://generativelanguage.googleapis.com/v1beta/models/${selectedModel}:generateContent`;
 
       const response = await fetch(endpoint, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: {
+          'Content-Type': 'application/json',
+          'x-goog-api-key': apiKey.trim(),
+        },
         signal: controller.signal,
         body: JSON.stringify({
           contents: [

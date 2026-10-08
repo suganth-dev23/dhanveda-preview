@@ -648,35 +648,38 @@ export const TransactionModal: React.FC<TransactionModalProps> = ({
       <button
        type="button"
        onClick={() => handleTabChange('expense')}
-       className={`py-2 px-2 rounded-xl text-xs sm:text-sm font-bold transition-colors ${
+       className={`py-2 px-2 rounded-xl text-xs sm:text-sm font-bold transition-colors flex items-center justify-center gap-1.5 ${
         activeTab === 'expense'
-         ? 'bg-rose-500 text-white shadow-xs'
+         ? 'bg-surface text-ink-1 shadow-xs border border-line'
          : 'text-ink-2 hover:text-ink-1'
        }`}
       >
-       Expense
+       <span className="text-sm font-bold leading-none">−</span>
+       <span>Expense</span>
       </button>
       <button
        type="button"
        onClick={() => handleTabChange('income')}
-       className={`py-2 px-2 rounded-xl text-xs sm:text-sm font-bold transition-colors ${
+       className={`py-2 px-2 rounded-xl text-xs sm:text-sm font-bold transition-colors flex items-center justify-center gap-1.5 ${
         activeTab === 'income'
-         ? 'bg-emerald-600 text-white shadow-xs'
+         ? 'bg-positive-tint text-positive shadow-xs border border-positive/30'
          : 'text-ink-2 hover:text-ink-1'
        }`}
       >
-       Income
+       <span className="text-sm font-bold leading-none">+</span>
+       <span>Income</span>
       </button>
       <button
        type="button"
        onClick={() => handleTabChange('transfer')}
-       className={`py-2 px-2 rounded-xl text-xs sm:text-sm font-bold transition-colors ${
+       className={`py-2 px-2 rounded-xl text-xs sm:text-sm font-bold transition-colors flex items-center justify-center gap-1.5 ${
         activeTab === 'transfer'
-         ? 'bg-primary text-on-primary shadow-xs'
+         ? 'bg-primary-tint text-primary shadow-xs border border-primary/30'
          : 'text-ink-2 hover:text-ink-1'
        }`}
       >
-       Transfer
+       <span className="text-sm font-bold leading-none">⇄</span>
+       <span>Transfer</span>
       </button>
      </div>
     </div>
@@ -691,7 +694,8 @@ export const TransactionModal: React.FC<TransactionModalProps> = ({
  ₹
  </div>
  <input
- type="number"
+       data-autofocus="true"
+       type="number"
  step="0.01"
  min={MIN_AMOUNT}
  max={MAX_AMOUNT}
@@ -917,7 +921,6 @@ export const TransactionModal: React.FC<TransactionModalProps> = ({
  <input
  type="text"
  placeholder="Enter new person's name..."
- autoFocus
  value={newPersonName}
  onChange={e => setNewPersonName(e.target.value)}
  className="flex-1 px-3 py-1.5 text-xs font-bold text-ink-1 bg-transparent focus:outline-none"
@@ -1020,7 +1023,7 @@ export const TransactionModal: React.FC<TransactionModalProps> = ({
  ₹
  </span>
  <input
- type="number"
+       type="number"
  step="0.01"
  value={row.amount || ''}
  onChange={e =>

@@ -61,7 +61,7 @@ export const CashFlowChart: React.FC = () => {
  <span className="w-2 h-2 rounded-full" style={{ backgroundColor: item.color }} />
  <span>{item.name}:</span>
  </span>
- <span className="font-bold font-numeric text-ink-1">
+ <span className="font-bold font-numeric text-ink-1" data-money="true">
  {formatINR(item.value)}
  </span>
  </div>

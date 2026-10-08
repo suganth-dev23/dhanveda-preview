@@ -416,13 +416,21 @@ textarea:focus-visible {
 
 /* ── Privacy Mode (Phase 8) ── */
 html[data-privacy="on"] [data-money],
-html[data-privacy="on"] .font-numeric {
+html[data-privacy="on"] .font-numeric,
+html[data-privacy="on"] .recharts-cartesian-axis-tick text,
+html[data-privacy="on"] .recharts-tooltip-wrapper,
+html[data-privacy="on"] .recharts-pie-label-text,
+html[data-privacy="on"] [data-privacy-blur] {
   filter: blur(6px);
   transition: filter 0.2s ease;
   user-select: none;
 }
 html[data-privacy="on"] [data-money]:hover,
-html[data-privacy="on"] .font-numeric:hover {
+html[data-privacy="on"] .font-numeric:hover,
+html[data-privacy="on"] .recharts-cartesian-axis-tick text:hover,
+html[data-privacy="on"] .recharts-tooltip-wrapper:hover,
+html[data-privacy="on"] .recharts-pie-label-text:hover,
+html[data-privacy="on"] [data-privacy-blur]:hover {
   filter: blur(0px);
   user-select: auto;
 }

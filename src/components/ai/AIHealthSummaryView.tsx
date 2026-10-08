@@ -16,7 +16,7 @@ import { useFinance } from '../../context/FinanceContext';
 import { useToast } from '../../context/ToastContext';
 import { AIProvider } from '../../types/finance';
 import { DEFAULT_AI_MODELS, generateFinancialSummary } from '../../services/aiService';
-import { formatDateTime } from '../../utils/date';
+import { formatDateTime, getTodayString } from '../../utils/date';
 import { formatINR } from '../../utils/currency';
 import { copyToClipboard } from '../../utils/clipboard';
 
@@ -153,7 +153,7 @@ export const AIHealthSummaryView: React.FC = () => {
    const url = URL.createObjectURL(blob);
    const a = document.createElement('a');
    a.href = url;
-   a.download = `dhanveda_ai_financial_summary_${new Date().toISOString().split('T')[0]}.md`;
+   a.download = `dhanveda_ai_financial_summary_${getTodayString()}.md`;
    a.click();
    URL.revokeObjectURL(url);
    showToast('info', 'Report Exported', 'Downloaded markdown report file.');
@@ -255,7 +255,7 @@ export const AIHealthSummaryView: React.FC = () => {
  AI Engine Configuration
  </h3>
  <p className="text-xs text-ink-3">
- Select your provider and manage private API keys (stored solely in browser IndexedDB)
+ Direct client integration. Sent data is strictly high-level aggregates (monthly income/expense, top categories, savings rate, budget velocity); raw transaction descriptions and payee details are never transmitted. Keys are stored locally on this device.
  </p>
  </div>
  <span className="text-xs font-semibold text-positive flex items-center gap-1.5">

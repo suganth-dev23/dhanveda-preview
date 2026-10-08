@@ -31,10 +31,13 @@ export function useFocusTrap<T extends HTMLElement = HTMLElement>({
     const container = containerRef.current;
     if (!container) return;
 
-    // Focus the first interactive element or fallback to container
+    // Focus explicit autofocus element, or first interactive element, or fallback to container
+    const autoFocusEl = container.querySelector<HTMLElement>('[data-autofocus], [autofocus]');
     const focusable = container.querySelectorAll<HTMLElement>(FOCUSABLE_SELECTOR);
     const initialTimer = requestAnimationFrame(() => {
-      if (focusable.length > 0) {
+      if (autoFocusEl) {
+        autoFocusEl.focus();
+      } else if (focusable.length > 0) {
         focusable[0].focus();
       } else {
         if (!container.hasAttribute('tabindex')) {

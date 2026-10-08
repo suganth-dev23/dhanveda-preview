@@ -110,6 +110,8 @@ export interface FinanceUiContextType {
  saveError: string | null;
  retrySave: () => void;
  clearSaveError: () => void;
+  crossTabStale: boolean;
+  dismissCrossTabStale: () => void;
 }
 
 export interface DeleteTransactionSnapshot {
@@ -282,6 +284,16 @@ export interface FinanceDataContextType {
 
 export interface FinanceContextType extends FinanceUiContextType, FinanceActionsContextType, FinanceDataContextType {}
 
+function broadcastDataChange(store: string) {
+  if (typeof BroadcastChannel !== 'undefined') {
+    try {
+      const bc = new BroadcastChannel('dhanveda-data');
+      bc.postMessage({ type: 'data_changed', store, at: Date.now() });
+      bc.close();
+    } catch {}
+  }
+}
+
 export const FinanceContext = createContext<FinanceContextType | undefined>(undefined);
 export const FinanceUiContext = createContext<FinanceUiContextType | undefined>(undefined);
 export const FinanceActionsContext = createContext<FinanceActionsContextType | undefined>(undefined);
@@ -391,6 +403,25 @@ export const FinanceProvider: React.FC<{ children: React.ReactNode }> = ({ child
   const retryTimerRef = useRef<any>(null);
   const retryBackoffMsRef = useRef<number>(1000);
   const [saveError, setSaveError] = useState<string | null>(null);
+  const [crossTabStale, setCrossTabStale] = useState(false);
+  const dismissCrossTabStale = useCallback(() => setCrossTabStale(false), []);
+
+  useEffect(() => {
+    if (typeof BroadcastChannel === 'undefined') return;
+    let bc: BroadcastChannel | null = null;
+    try {
+      bc = new BroadcastChannel('dhanveda-data');
+      bc.onmessage = (event) => {
+        if (event?.data?.type === 'data_changed') {
+          setCrossTabStale(true);
+        }
+      };
+    } catch {}
+    return () => {
+      try { bc?.close(); } catch {}
+    };
+  }, []);
+
 
   const clearSaveError = useCallback(() => {
     setSaveError(null);
@@ -459,14 +490,14 @@ export const FinanceProvider: React.FC<{ children: React.ReactNode }> = ({ child
         try {
           await saveSingleRecord('emergencyFund', { ...emergencyFundRef.current, id: 'current' });
           dirtyStoresRef.current.delete(sName);
-        } catch (err) {
+        } catch {
           anyFailed = true;
         }
       } else if (sName === 'aiSettings') {
         try {
           await saveSingleRecord('aiSettings', { ...aiSettings, id: 'current' });
           dirtyStoresRef.current.delete(sName);
-        } catch (err) {
+        } catch {
           anyFailed = true;
         }
       }
@@ -515,7 +546,11 @@ export const FinanceProvider: React.FC<{ children: React.ReactNode }> = ({ child
       ];
 
       for (const config of storeConfigs) {
-        if (pendingWritesRef.current.has(config.name) || dirtyStoresRef.current.has(config.name)) {
+        if (
+          config.prevRef.current !== config.current ||
+          pendingWritesRef.current.has(config.name) ||
+          dirtyStoresRef.current.has(config.name)
+        ) {
           try {
             persistDiffSync(cached, config.name, config.prevRef.current, config.current);
             config.prevRef.current = config.current;
@@ -560,6 +595,7 @@ export const FinanceProvider: React.FC<{ children: React.ReactNode }> = ({ child
           prevRef.current = currentItems;
         }
         dirtyStoresRef.current.delete(storeName);
+        broadcastDataChange(storeName);
         if (dirtyStoresRef.current.size === 0) {
           setSaveError(null);
           retryBackoffMsRef.current = 1000;
@@ -598,6 +634,7 @@ export const FinanceProvider: React.FC<{ children: React.ReactNode }> = ({ child
       try {
         await saveSingleRecord(storeName, data);
         dirtyStoresRef.current.delete(storeName);
+        broadcastDataChange(storeName);
         if (dirtyStoresRef.current.size === 0) {
           setSaveError(null);
           retryBackoffMsRef.current = 1000;
@@ -1008,10 +1045,12 @@ export const FinanceProvider: React.FC<{ children: React.ReactNode }> = ({ child
 
     window.addEventListener('visibilitychange', handleVisibilityChange);
     window.addEventListener('pagehide', handlePageHide);
+    window.addEventListener('beforeunload', handlePageHide);
 
     return () => {
       window.removeEventListener('visibilitychange', handleVisibilityChange);
       window.removeEventListener('pagehide', handlePageHide);
+      window.removeEventListener('beforeunload', handlePageHide);
       flushPendingSync();
     };
   }, [flushPendingSync]);
@@ -2523,7 +2562,7 @@ export const FinanceProvider: React.FC<{ children: React.ReactNode }> = ({ child
         const url = URL.createObjectURL(blob);
         const a = document.createElement('a');
         a.href = url;
-        a.download = `dhanveda-safety-backup-${new Date().toISOString().slice(0, 10)}.json`;
+        a.download = `dhanveda-safety-backup-${getTodayString()}.json`;
         document.body.appendChild(a);
         a.click();
         setTimeout(() => {
@@ -2627,7 +2666,7 @@ export const FinanceProvider: React.FC<{ children: React.ReactNode }> = ({ child
           const url = URL.createObjectURL(blob);
           const a = document.createElement('a');
           a.href = url;
-          a.download = `dhanveda-skipped-records-${new Date().toISOString().slice(0, 10)}.txt`;
+          a.download = `dhanveda-skipped-records-${getTodayString()}.txt`;
           document.body.appendChild(a);
           a.click();
           setTimeout(() => {
@@ -3131,6 +3170,8 @@ export const FinanceProvider: React.FC<{ children: React.ReactNode }> = ({ child
     saveError,
     retrySave,
     clearSaveError,
+    crossTabStale,
+    dismissCrossTabStale,
   }), [
     currentView,
     darkMode,
@@ -3141,6 +3182,8 @@ export const FinanceProvider: React.FC<{ children: React.ReactNode }> = ({ child
     saveError,
     retrySave,
     clearSaveError,
+    crossTabStale,
+    dismissCrossTabStale,
   ]);
 
   const actionsCurrent: FinanceActionsContextType = {

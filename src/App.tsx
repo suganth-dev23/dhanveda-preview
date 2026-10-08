@@ -15,11 +15,7 @@ import { exportRawIndexedDBData } from './utils/recordValidation';
 import { AlertTriangle, Download, RefreshCw, X } from 'lucide-react';
 import type { Transaction } from './types/finance';
 
-// Lazy-loaded route views
-const dashboardPromise = import('./components/dashboard/DashboardView');
-const DashboardView = lazy(() =>
-  dashboardPromise.then(m => ({ default: m.DashboardView }))
-);
+import { DashboardView } from './components/dashboard/DashboardView';
 const TransactionListView = lazy(() =>
   import('./components/transactions/TransactionListView').then(m => ({ default: m.TransactionListView }))
 );
@@ -67,6 +63,8 @@ const MainContent: React.FC = () => {
     saveError,
     retrySave,
     clearSaveError,
+    crossTabStale,
+    dismissCrossTabStale,
   } = useFinance();
   const [isAddTxOpen, setIsAddTxOpen] = useState(false);
   const [editingTx, setEditingTx] = useState<Transaction | null>(null);
@@ -131,6 +129,45 @@ const MainContent: React.FC = () => {
                   onClick={dismissUnreadableBanner}
                   className="p-1.5 rounded-lg text-ink-3 hover:text-ink-1 hover:bg-sunken transition-colors cursor-pointer"
                   aria-label="Dismiss unreadable records warning"
+                >
+                  <X className="w-4 h-4" />
+                </button>
+              </div>
+            </div>
+          )}
+
+          {crossTabStale && (
+            <div
+              role="status"
+              className="mb-6 p-4 rounded-2xl bg-primary-tint border border-primary/30 text-ink-1 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 animate-slide-up"
+            >
+              <div className="flex items-center gap-3 min-w-0">
+                <div className="p-2 rounded-xl bg-primary text-on-primary shrink-0">
+                  <RefreshCw className="w-5 h-5" />
+                </div>
+                <div className="min-w-0">
+                  <p className="text-sm font-bold text-ink-1">
+                    Data changed in another tab
+                  </p>
+                  <p className="text-xs text-ink-3">
+                    A transaction or record was modified in another window. Refresh to load latest data.
+                  </p>
+                </div>
+              </div>
+              <div className="flex items-center gap-2 shrink-0 self-end sm:self-center">
+                <button
+                  type="button"
+                  onClick={() => window.location.reload()}
+                  className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-primary hover:opacity-95 text-on-primary text-xs font-semibold shadow-xs transition-colors cursor-pointer"
+                >
+                  <RefreshCw className="w-3.5 h-3.5" />
+                  Refresh
+                </button>
+                <button
+                  type="button"
+                  onClick={dismissCrossTabStale}
+                  className="p-1.5 rounded-lg text-ink-3 hover:text-ink-1 hover:bg-sunken transition-colors cursor-pointer"
+                  aria-label="Dismiss cross-tab notice"
                 >
                   <X className="w-4 h-4" />
                 </button>

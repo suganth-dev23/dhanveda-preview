@@ -9,7 +9,7 @@ import {
 } from 'lucide-react';
 import { useFinance } from '../../context/FinanceContext';
 import { DreamGoal } from '../../types/finance';
-import { formatDate, calculateMonthsDiff } from '../../utils/date';
+import { formatDate, calculateMonthsDiff, getTodayString } from '../../utils/date';
 import { IconRenderer } from '../common/IconRenderer';
 import { AnimatedNumber } from '../common/AnimatedNumber';
 import { EmptyState } from '../common/EmptyState';
@@ -178,7 +178,7 @@ export const DreamsView: React.FC = () => {
             let monthsLeft: number | null = null;
             let suggestedMonthly = 0;
             if (dream.targetDate && !isCompleted) {
-              const today = new Date().toISOString().split('T')[0];
+              const today = getTodayString();
               monthsLeft = calculateMonthsDiff(today, dream.targetDate);
               suggestedMonthly = monthsLeft > 0 ? Math.ceil(remaining / monthsLeft) : remaining;
             }

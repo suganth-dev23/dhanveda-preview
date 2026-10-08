@@ -1,5 +1,6 @@
 import React, { Component, ErrorInfo, ReactNode } from 'react';
 import { AlertOctagon, RotateCw, Download, Trash2, ArrowLeft } from 'lucide-react';
+import { getTodayString } from '../../utils/date';
 
 interface Props {
   children: ReactNode;
@@ -106,7 +107,7 @@ export class AppErrorBoundary extends Component<Props, State> {
       const url = URL.createObjectURL(blob);
       const a = document.createElement('a');
       a.href = url;
-      a.download = `dhanveda-raw-data-${new Date().toISOString().slice(0, 10)}.json`;
+      a.download = `dhanveda-raw-data-${getTodayString()}.json`;
       document.body.appendChild(a);
       a.click();
       document.body.removeChild(a);

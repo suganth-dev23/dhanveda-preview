@@ -39,11 +39,11 @@ const CategoryTooltip: React.FC<CategoryTooltipProps> = ({ active, payload, tota
           <span className="w-2.5 h-2.5 rounded-full" style={{ backgroundColor: data.color || '#F5B742' }} />
           {data.category}
         </p>
-        <p className="font-numeric text-ink-2 font-semibold mt-1">
+        <p className="font-numeric text-ink-2 font-semibold mt-1" data-money="true">
           {formatINR(data.spent)} ({pct.toFixed(1)}%)
         </p>
         {data.budget > 0 && (
-          <p className="font-numeric text-ink-3 text-xs mt-0.5">
+          <p className="font-numeric text-ink-3 text-xs mt-0.5" data-money="true">
             Budget: {formatINR(data.budget)} ({data.percentUsed.toFixed(0)}% used)
           </p>
         )}
@@ -246,7 +246,7 @@ export const CategoryExpenseChart: React.FC = () => {
             </div>
           )}
 
-          <span className="font-numeric text-xs font-bold text-ink-1 bg-sunken px-2.5 py-1 rounded-xl border border-line shrink-0">
+          <span data-money="true" className="font-numeric text-xs font-bold text-ink-1 bg-sunken px-2.5 py-1 rounded-xl border border-line shrink-0">
             {formatINR(activeMonthExpense)}
           </span>
         </div>
@@ -261,11 +261,11 @@ export const CategoryExpenseChart: React.FC = () => {
               'Equal to this month'
             ) : momComparison.isLowerThisMonth ? (
               <span className="text-positive">
-                This month is {formatINR(Math.abs(momComparison.diff))} ({momComparison.pctDiff.toFixed(0)}%) lower
+                This month is <span data-money="true">{formatINR(Math.abs(momComparison.diff))}</span> ({momComparison.pctDiff.toFixed(0)}%) lower
               </span>
             ) : (
               <span className="text-negative">
-                This month is {formatINR(momComparison.diff)} ({momComparison.pctDiff.toFixed(0)}%) higher
+                This month is <span data-money="true">{formatINR(momComparison.diff)}</span> ({momComparison.pctDiff.toFixed(0)}%) higher
               </span>
             )}
           </span>
