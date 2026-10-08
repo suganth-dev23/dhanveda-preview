@@ -791,18 +791,8 @@ export const TransactionModal: React.FC<TransactionModalProps> = ({
  <input
  type="date"
  required
- min={MIN_DATE_STRING}
- max={getMaxDateString()}
  value={date}
  onChange={e => setDate(e.target.value)}
- onBlur={() => {
-  const sanitized = sanitizeDateString(date);
-  if (!sanitized) {
-   setDate(getTodayString());
-  } else {
-   setDate(sanitized);
-  }
- }}
  className="font-numeric tabular-nums w-full rounded-xl border border-line bg-sunken px-3.5 py-2.5 text-sm text-ink-1 focus:border-primary focus:ring-1 focus:ring-primary focus:outline-none"
  />
  </div>
