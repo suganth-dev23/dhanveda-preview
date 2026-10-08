@@ -178,7 +178,7 @@ export const GoogleSyncSetupModal: React.FC<GoogleSyncSetupModalProps> = ({
  <button
  type="submit"
  disabled={!clientIdInput.trim()}
- className="px-4 py-2 bg-primary hover:opacity-95 text-on-primary disabled:opacity-50 text-slate-950 rounded-xl text-xs font-bold transition-colors shadow-sm active:scale-95 flex items-center gap-1.5"
+ className="px-4 py-2 bg-primary hover:opacity-95 text-on-primary disabled:opacity-50 rounded-xl text-xs font-bold transition-colors shadow-sm active:scale-95 flex items-center gap-1.5"
  >
  {savedSuccess ? (
  <>

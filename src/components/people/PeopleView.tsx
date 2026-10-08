@@ -331,7 +331,7 @@ export const PeopleView: React.FC = () => {
 
  <button
  onClick={() => setIsAddContactOpen(true)}
- className="inline-flex items-center gap-2 rounded-xl bg-primary hover:opacity-95 text-on-primary px-5 py-3 text-sm font-bold text-slate-950 shadow-sm transition-colors active:scale-[0.98]"
+ className="inline-flex items-center gap-2 rounded-xl bg-primary hover:opacity-95 text-on-primary px-5 py-3 text-sm font-bold shadow-sm transition-colors active:scale-[0.98]"
  >
  <UserPlus className="h-4 w-4 stroke-[2.5]" />
  <span>Add Person</span>

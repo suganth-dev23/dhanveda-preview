@@ -87,7 +87,7 @@ export const BudgetsView: React.FC = () => {
               </h2>
               <span
                 className={`text-sm font-semibold ${
-                  isOverTotal ? 'text-rose-600 dark:text-rose-400' : 'text-emerald-600 dark:text-emerald-400'
+                  isOverTotal ? 'text-negative' : 'text-positive'
                 }`}
               >
                 {isOverTotal ? 'over budget' : 'remaining'}
@@ -148,12 +148,12 @@ export const BudgetsView: React.FC = () => {
               value={
                 <span className={`text-sm sm:text-lg font-bold font-numeric ${
                   isOverTotal
-                    ? 'text-rose-600 dark:text-rose-400'
+                    ? 'text-negative'
                     : isPacingFast
                     ? 'text-ink-1'
                     : overallPercent >= 85
                     ? 'text-ink-1'
-                    : 'text-emerald-600 dark:text-emerald-400'
+                    : 'text-positive'
                 }`}>
                   {isOverTotal
                     ? 'Over Budget'
@@ -251,7 +251,7 @@ export const BudgetsView: React.FC = () => {
                     <div className="flex items-center gap-1.5 opacity-80 group-hover:opacity-100 transition-opacity">
                       <button
                         onClick={() => handleEdit(b)}
-                        className="press flex h-8 w-8 items-center justify-center rounded-xl border border-line text-ink-3 hover:bg-sunken hover:text-ink-1 transition-colors"
+                        className="press flex min-h-[44px] min-w-[44px] items-center justify-center rounded-xl border border-line text-ink-3 hover:bg-sunken hover:text-ink-1 transition-colors"
                         title="Edit Limit"
                       >
                         <Edit3 className="w-3.5 h-3.5" />
@@ -262,7 +262,7 @@ export const BudgetsView: React.FC = () => {
                             deleteBudget(b.id);
                           }
                         }}
-                        className="press flex h-8 w-8 items-center justify-center rounded-xl border border-line text-ink-3 hover:text-rose-600 hover:bg-rose-50 dark:hover:bg-rose-950/40 transition-colors"
+                        className="press flex min-h-[44px] min-w-[44px] items-center justify-center rounded-xl border border-line text-ink-3 hover:text-negative hover:bg-negative-tint transition-colors"
                         title="Delete Budget"
                       >
                         <Trash2 className="w-3.5 h-3.5" />
@@ -298,7 +298,7 @@ export const BudgetsView: React.FC = () => {
                     <div className="flex justify-between items-center text-xs pt-1">
                       <span className="font-semibold text-ink-3 font-numeric">{percentUsed.toFixed(0)}% utilized</span>
                       {isOver ? (
-                        <span className="font-bold text-rose-600 dark:text-rose-400 flex items-center gap-1 font-numeric">
+                        <span className="font-bold text-negative flex items-center gap-1 font-numeric">
                           <ShieldAlert className="w-3.5 h-3.5" />
                           Exceeded by <Money value={spent - b.monthlyLimit} size="xs" className="text-inherit" />
                         </span>
@@ -313,7 +313,7 @@ export const BudgetsView: React.FC = () => {
                           Pacing high
                         </span>
                       ) : (
-                        <span className="font-semibold text-emerald-600 dark:text-emerald-400 flex items-center gap-1">
+                        <span className="font-semibold text-positive flex items-center gap-1">
                           <CheckCircle className="w-3.5 h-3.5" />
                           On track
                         </span>

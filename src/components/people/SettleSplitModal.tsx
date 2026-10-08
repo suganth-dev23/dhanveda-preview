@@ -387,7 +387,7 @@ export const SettleSplitModal: React.FC<SettleSplitModalProps> = ({
                     onClick={() => setFilterMode('exact')}
                     className={`font-numeric px-2 py-1 rounded-xl transition-colors ${
                       filterMode === 'exact'
-                        ? 'bg-primary text-slate-950 shadow-xs'
+                        ? 'bg-primary text-on-primary shadow-xs'
                         : 'text-ink-3'
                     }`}
                   >
@@ -398,7 +398,7 @@ export const SettleSplitModal: React.FC<SettleSplitModalProps> = ({
                     onClick={() => setFilterMode('credits')}
                     className={`px-2 py-1 rounded-xl transition-colors ${
                       filterMode === 'credits'
-                        ? 'bg-primary text-slate-950 shadow-xs'
+                        ? 'bg-primary text-on-primary shadow-xs'
                         : 'text-ink-3'
                     }`}
                   >

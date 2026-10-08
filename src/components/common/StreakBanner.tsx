@@ -35,26 +35,26 @@ export const StreakBanner: React.FC<StreakBannerProps> = ({ compact = false }) =
  type="button"
  onClick={() => setCurrentView('badges')}
  aria-label={`Current streak: ${streak.currentStreak} days. Best: ${streak.longestStreak} days. View Achievements.`}
- className={`group flex items-center gap-2 px-3 py-1.5 rounded-xl border transition-colors duration-200 cursor-pointer ${
- isStreakBroken
- ? 'bg-sunken border-line text-ink-3 hover:bg-line'
- : isHabit
- ? 'bg-amber-500/10 dark:bg-amber-500/15 border-amber-500/30 text-amber-700 dark:text-reward hover:bg-amber-500/20'
- : 'bg-sunken border-line text-ink-2 hover:bg-line'
- }`}
- title={`Current streak: ${streak.currentStreak} days. Best: ${streak.longestStreak} days. Click to view Achievements.`}
- >
- <Flame
- className={`w-4 h-4 transition-transform group-hover:scale-110 ${
- isStreakBroken
- ? 'text-ink-3 animate-desaturate-pulse opacity-60'
- : isTitan
- ? 'text-amber-500 animate-flame-flicker fill-amber-500'
- : isHabit
- ? 'text-amber-500 animate-flame-flicker fill-amber-500/60'
- : 'text-amber-600 dark:text-amber-400'
- }`}
- />
+  className={`group flex items-center gap-2 px-3 py-1.5 min-h-[44px] rounded-xl border transition-colors duration-200 cursor-pointer ${
+  isStreakBroken
+    ? 'bg-sunken border-line text-ink-3 hover:bg-line'
+    : isHabit
+    ? 'bg-reward-tint border-reward/30 text-reward hover:bg-reward-tint/80'
+    : 'bg-sunken border-line text-ink-2 hover:bg-line'
+  }`}
+  title={`Current streak: ${streak.currentStreak} days. Best: ${streak.longestStreak} days. Click to view Achievements.`}
+  >
+  <Flame
+    className={`w-4 h-4 transition-transform group-hover:scale-110 ${
+    isStreakBroken
+      ? 'text-ink-3 animate-desaturate-pulse opacity-60'
+      : isTitan
+      ? 'text-reward animate-flame-flicker fill-reward'
+      : isHabit
+      ? 'text-reward animate-flame-flicker fill-reward/60'
+      : 'text-reward'
+    }`}
+  />
  <span className="font-numeric font-bold text-xs sm:text-sm">
  {streak.currentStreak}d
  </span>

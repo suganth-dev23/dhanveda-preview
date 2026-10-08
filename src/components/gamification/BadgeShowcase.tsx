@@ -101,10 +101,10 @@ export const BadgeShowcase: React.FC = () => {
  <div className="relative z-10 flex flex-col md:flex-row md:items-center justify-between gap-6">
  <div>
  <div className="flex items-center gap-2 mb-2">
- <span className="flex h-6 w-6 items-center justify-center rounded-xl bg-amber-500/10 dark:bg-amber-400/10 text-amber-600 dark:text-amber-400">
+ <span className="flex h-6 w-6 items-center justify-center rounded-xl bg-reward-tint text-reward">
  <Trophy className="h-4 w-4" />
  </span>
- <span className="text-xs font-bold uppercase tracking-wider text-amber-600 dark:text-amber-400">
+ <span className="text-xs font-bold uppercase tracking-wider text-reward">
  ACHIEVEMENT VAULT &amp; TROPHIES
  </span>
  </div>
@@ -118,7 +118,7 @@ export const BadgeShowcase: React.FC = () => {
  of {badges.length} Unlocked
  </span>
  </h2>
- <span className="text-xs font-bold font-numeric px-2.5 py-1 rounded-full bg-amber-500/10 text-amber-700 dark:text-reward border border-amber-500/20">
+ <span className="text-xs font-bold font-numeric px-2.5 py-1 rounded-full bg-reward-tint text-reward border border-reward/20">
  {percentComplete}% Completed
  </span>
  </div>
@@ -130,7 +130,7 @@ export const BadgeShowcase: React.FC = () => {
  {/* Level Progress Widget in Hero */}
  <div className="w-full md:w-80 bg-sunken p-4 rounded-2xl border border-line">
  <div className="flex justify-between items-center text-xs mb-1.5 font-bold">
- <span className="text-amber-700 dark:text-reward">
+ <span className="text-reward">
  Level <span className="font-numeric">{levelInfo.level}</span> Progress
  </span>
  <span className="font-numeric text-ink-2">
@@ -161,7 +161,7 @@ export const BadgeShowcase: React.FC = () => {
  </div>
  <div className="rounded-2xl bg-sunken p-3.5 border border-line">
  <span className="text-xs text-ink-3">Logging Streak</span>
- <p className="text-lg font-bold font-numeric text-emerald-600 dark:text-emerald-400 mt-0.5">
+ <p className="text-lg font-bold font-numeric text-positive mt-0.5">
  {streak.currentStreak} Days
  </p>
  </div>
@@ -185,7 +185,7 @@ export const BadgeShowcase: React.FC = () => {
  <button
  key={tab.id}
  onClick={() => setSelectedCategory(tab.id)}
- className={`press flex items-center gap-2 px-3.5 py-2 rounded-xl text-xs font-bold transition-colors shrink-0 cursor-pointer ${
+ className={`press flex items-center gap-2 px-3.5 py-2.5 min-h-[44px] rounded-xl text-xs font-bold transition-colors shrink-0 cursor-pointer ${
  isActive
  ? 'bg-ink-1 text-surface shadow-xs'
  : 'bg-sunken text-ink-2 hover:text-ink-1'
@@ -215,9 +215,9 @@ export const BadgeShowcase: React.FC = () => {
  <button
  key={status}
  onClick={() => setSelectedStatus(status)}
- className={`press px-3 py-1.5 rounded-xl text-xs font-semibold transition-colors cursor-pointer ${
+ className={`press px-3.5 py-2 min-h-[44px] rounded-xl text-xs font-semibold transition-colors cursor-pointer ${
  isActive
- ? 'bg-amber-500/15 text-amber-700 dark:text-reward border border-amber-500/30'
+ ? 'bg-reward-tint text-reward border border-reward/30'
  : 'text-ink-3 hover:bg-sunken'
  }`}
  >
@@ -310,7 +310,7 @@ export const BadgeShowcase: React.FC = () => {
  {/* Lock or Check status */}
  <div>
  {isUnlocked ? (
- <span className="flex h-7 w-7 items-center justify-center rounded-xl bg-emerald-500/10 text-emerald-600 dark:text-emerald-400">
+ <span className="flex h-7 w-7 items-center justify-center rounded-xl bg-positive-tint text-positive">
  <CheckCircle2 className="w-4 h-4" />
  </span>
  ) : (
@@ -336,7 +336,7 @@ export const BadgeShowcase: React.FC = () => {
  </div>
 
  {isUnlocked ? (
- <span className="text-xs text-emerald-600 dark:text-emerald-400 font-semibold flex items-center gap-1">
+ <span className="text-xs text-positive font-semibold flex items-center gap-1">
  <Sparkles className="w-3 h-3" />
  Earned
  </span>

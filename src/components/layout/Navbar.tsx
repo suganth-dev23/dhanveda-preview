@@ -131,7 +131,7 @@ export const Navbar: React.FC<NavbarProps> = ({ onOpenAddTx }) => {
         <button
           type="button"
           onClick={togglePrivacy}
-          className="p-2 rounded-xl text-ink-3 hover:text-ink-1 hover:bg-sunken transition-colors press"
+          className="w-11 h-11 flex items-center justify-center rounded-xl text-ink-3 hover:text-ink-1 hover:bg-sunken transition-colors press"
           title={isPrivacy ? 'Disable privacy mode' : 'Enable privacy mode (blur amounts)'}
           aria-label={isPrivacy ? 'Disable privacy mode' : 'Enable privacy mode (blur amounts)'}
         >
@@ -163,7 +163,7 @@ export const Navbar: React.FC<NavbarProps> = ({ onOpenAddTx }) => {
         {/* Mobile Theme Toggle */}
         <button
           onClick={() => setDarkMode(prev => !prev)}
-          className="lg:hidden p-2 rounded-xl text-ink-3 hover:bg-sunken transition-colors press"
+          className="lg:hidden w-11 h-11 flex items-center justify-center rounded-xl text-ink-3 hover:bg-sunken transition-colors press"
           title={darkMode ? 'Switch to light mode' : 'Switch to dark mode'}
           aria-label={darkMode ? 'Switch to light mode' : 'Switch to dark mode'}
         >

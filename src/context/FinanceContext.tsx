@@ -2727,105 +2727,129 @@ export const FinanceProvider: React.FC<{ children: React.ReactNode }> = ({ child
  return dreams.reduce((acc, d) => acc + d.currentSaved, 0);
  }, [dreams]);
 
- // Derived Splits & Owed Metrics
- const contactBalances = useMemo<ContactBalance[]>(() => {
- return contacts.map(contact => {
- let owedToMe = 0;
- let iOweThem = 0;
- let lastUpdated = contact.createdAt;
+  // Derived Splits & Owed Metrics (Single-pass Map indexed: O(T + S + C) instead of O(C * (T + S)))
+  const contactBalances = useMemo<ContactBalance[]>(() => {
+    // 1. Single pass over transactions to accumulate split balances per contact
+    const splitsByContact = new Map<string, { owedToMe: number; iOweThem: number; latestDate: string }>();
 
- transactions.forEach(t => {
- if (t.splitWith && Array.isArray(t.splitWith)) {
- t.splitWith.forEach(entry => {
- if (entry.contactId === contact.id) {
- const fullAmount = entry.amount;
- const settledAmt = entry.settled
- ? (entry.settledAmount !== undefined ? entry.settledAmount : fullAmount)
- : (entry.settledAmount || 0);
- const remaining = Math.max(0, fullAmount - settledAmt);
+    for (let i = 0; i < transactions.length; i++) {
+      const t = transactions[i];
+      if (!t.splitWith || !Array.isArray(t.splitWith)) continue;
+      for (let j = 0; j < t.splitWith.length; j++) {
+        const entry = t.splitWith[j];
+        if (!entry.contactId) continue;
+        let data = splitsByContact.get(entry.contactId);
+        if (!data) {
+          data = { owedToMe: 0, iOweThem: 0, latestDate: '' };
+          splitsByContact.set(entry.contactId, data);
+        }
+        const fullAmount = entry.amount;
+        const settledAmt = entry.settled
+          ? (entry.settledAmount !== undefined ? entry.settledAmount : fullAmount)
+          : (entry.settledAmount || 0);
+        const remaining = Math.max(0, fullAmount - settledAmt);
 
- if (remaining > 0) {
- if (entry.direction === 'they_owe_me') {
- owedToMe += remaining;
- } else {
- iOweThem += remaining;
- }
- }
- if (t.date > lastUpdated) {
- lastUpdated = t.date;
- }
- }
- });
- }
- });
+        if (remaining > 0) {
+          if (entry.direction === 'they_owe_me') {
+            data.owedToMe += remaining;
+          } else {
+            data.iOweThem += remaining;
+          }
+        }
+        if (t.date > data.latestDate) {
+          data.latestDate = t.date;
+        }
+      }
+    }
 
- // Process generic settlements and overpayment amounts for this contact
- settlements
- .filter(s => s.contactId === contact.id)
- .forEach(s => {
- let settlementApplicableAmount = 0;
- if (!s.sourceTransactionId) {
- settlementApplicableAmount = s.amount;
- } else if (s.reconciledSplits && s.reconciledSplits.length > 0) {
- const totalReconciled = s.reconciledSplits.reduce((sum, r) => sum + r.amount, 0);
- const excess = Math.max(0, s.amount - totalReconciled);
- settlementApplicableAmount = excess;
- }
+    // 2. Single pass over settlements to group by contactId
+    const settlementsByContact = new Map<string, SettlementRecord[]>();
+    for (let i = 0; i < settlements.length; i++) {
+      const s = settlements[i];
+      if (!s.contactId) continue;
+      const list = settlementsByContact.get(s.contactId);
+      if (list) {
+        list.push(s);
+      } else {
+        settlementsByContact.set(s.contactId, [s]);
+      }
+    }
 
- if (settlementApplicableAmount <= 0) {
- if (s.date > lastUpdated) lastUpdated = s.date;
- return;
- }
+    // 3. Map contacts in O(contacts)
+    return contacts.map(contact => {
+      const splitData = splitsByContact.get(contact.id);
+      let owedToMe = splitData ? splitData.owedToMe : 0;
+      let iOweThem = splitData ? splitData.iOweThem : 0;
+      let lastUpdated = (splitData && splitData.latestDate > contact.createdAt)
+        ? splitData.latestDate
+        : contact.createdAt;
 
- if (s.direction === 'they_owe_me') {
- // Contact repaid user: reduce owedToMe, excess overpayment becomes user owes contact
- const deduction = Math.min(owedToMe, settlementApplicableAmount);
- owedToMe -= deduction;
- const excess = settlementApplicableAmount - deduction;
- if (excess > 0) {
- iOweThem += excess;
- }
- } else if (s.direction === 'i_owe_them') {
- // User repaid contact: reduce iOweThem, excess overpayment becomes contact owes user
- const deduction = Math.min(iOweThem, settlementApplicableAmount);
- iOweThem -= deduction;
- const excess = settlementApplicableAmount - deduction;
- if (excess > 0) {
- owedToMe += excess;
- }
- } else {
- // Fallback if direction was not stored (legacy records):
- if (owedToMe >= iOweThem) {
- const deduction = Math.min(owedToMe, settlementApplicableAmount);
- owedToMe -= deduction;
- const leftover = settlementApplicableAmount - deduction;
- if (leftover > 0) {
- iOweThem += leftover;
- }
- } else {
- const deduction = Math.min(iOweThem, settlementApplicableAmount);
- iOweThem -= deduction;
- const leftover = settlementApplicableAmount - deduction;
- if (leftover > 0) {
- owedToMe += leftover;
- }
- }
- }
- if (s.date > lastUpdated) {
- lastUpdated = s.date;
- }
- });
+      const contactSettlements = settlementsByContact.get(contact.id);
+      if (contactSettlements) {
+        for (let i = 0; i < contactSettlements.length; i++) {
+          const s = contactSettlements[i];
+          let settlementApplicableAmount = 0;
+          if (!s.sourceTransactionId) {
+            settlementApplicableAmount = s.amount;
+          } else if (s.reconciledSplits && s.reconciledSplits.length > 0) {
+            let totalReconciled = 0;
+            for (let r = 0; r < s.reconciledSplits.length; r++) {
+              totalReconciled += s.reconciledSplits[r].amount;
+            }
+            const excess = Math.max(0, s.amount - totalReconciled);
+            settlementApplicableAmount = excess;
+          }
 
- // True net balance: positive = they owe user; negative = user owes them
- const netAmount = owedToMe - iOweThem;
+          if (settlementApplicableAmount <= 0) {
+            if (s.date > lastUpdated) lastUpdated = s.date;
+            continue;
+          }
 
- return {
- contactId: contact.id,
- netAmount: Number(netAmount.toFixed(2)),
- lastUpdated,
- };
- });
- }, [contacts, transactions, settlements]);
+          if (s.direction === 'they_owe_me') {
+            const deduction = Math.min(owedToMe, settlementApplicableAmount);
+            owedToMe -= deduction;
+            const excess = settlementApplicableAmount - deduction;
+            if (excess > 0) {
+              iOweThem += excess;
+            }
+          } else if (s.direction === 'i_owe_them') {
+            const deduction = Math.min(iOweThem, settlementApplicableAmount);
+            iOweThem -= deduction;
+            const excess = settlementApplicableAmount - deduction;
+            if (excess > 0) {
+              owedToMe += excess;
+            }
+          } else {
+            if (owedToMe >= iOweThem) {
+              const deduction = Math.min(owedToMe, settlementApplicableAmount);
+              owedToMe -= deduction;
+              const leftover = settlementApplicableAmount - deduction;
+              if (leftover > 0) {
+                iOweThem += leftover;
+              }
+            } else {
+              const deduction = Math.min(iOweThem, settlementApplicableAmount);
+              iOweThem -= deduction;
+              const leftover = settlementApplicableAmount - deduction;
+              if (leftover > 0) {
+                owedToMe += leftover;
+              }
+            }
+          }
+          if (s.date > lastUpdated) {
+            lastUpdated = s.date;
+          }
+        }
+      }
+
+      const netAmount = owedToMe - iOweThem;
+      return {
+        contactId: contact.id,
+        netAmount: Number(netAmount.toFixed(2)),
+        lastUpdated,
+      };
+    });
+  }, [contacts, transactions, settlements]);
 
  const totalOwedToMe = useMemo(() => {
  const namedOwed = contactBalances

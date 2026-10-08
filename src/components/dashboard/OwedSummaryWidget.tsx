@@ -66,7 +66,7 @@ export const OwedSummaryWidget: React.FC = () => {
 
         <button
           onClick={() => setCurrentView('people')}
-          className="text-xs font-semibold text-emerald-600 dark:text-emerald-400 hover:underline flex items-center gap-0.5"
+          className="text-xs font-semibold text-primary hover:underline flex items-center gap-0.5 min-h-[44px]"
         >
           <span>View all</span>
           <ChevronRight className="w-3.5 h-3.5" />
@@ -156,7 +156,7 @@ export const OwedSummaryWidget: React.FC = () => {
       {latestSettlement && (
         <div
           onClick={() => setCurrentView('people')}
-          className="pt-2.5 border-t border-line flex items-center justify-between text-xs text-ink-3 cursor-pointer hover:text-emerald-600 dark:hover:text-emerald-400 transition-colors"
+          className="pt-2.5 border-t border-line flex items-center justify-between text-xs text-ink-3 cursor-pointer hover:text-primary transition-colors min-h-[44px]"
         >
           <div className="flex items-center gap-1.5 min-w-0 truncate">
             <CheckCircle2 className="w-3.5 h-3.5 text-emerald-500 flex-shrink-0" />

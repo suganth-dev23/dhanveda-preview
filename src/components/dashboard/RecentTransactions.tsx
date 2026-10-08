@@ -21,8 +21,9 @@ export const RecentTransactions: React.FC<RecentTransactionsProps> = ({ onEditTr
   const recentList = useMemo(() => {
     return [...(transactions || [])]
       .sort((a, b) => {
-        const dateDiff = (new Date(b.date).getTime() || 0) - (new Date(a.date).getTime() || 0);
-        if (dateDiff !== 0) return dateDiff;
+        const dA = a.date || '';
+        const dB = b.date || '';
+        if (dB !== dA) return dB.localeCompare(dA);
         return (b.createdAt || '').localeCompare(a.createdAt || '');
       })
       .slice(0, 6);
@@ -48,7 +49,7 @@ export const RecentTransactions: React.FC<RecentTransactionsProps> = ({ onEditTr
           </div>
           <button
             onClick={() => setCurrentView('transactions')}
-            className="text-xs font-semibold text-emerald-600 dark:text-emerald-400 hover:underline flex items-center gap-0.5"
+            className="text-xs font-semibold text-primary hover:underline flex items-center gap-0.5 min-h-[44px]"
           >
             <span>View all</span>
             <ChevronRight className="w-3.5 h-3.5" />

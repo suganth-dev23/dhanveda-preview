@@ -19,6 +19,7 @@ import { OwedSummaryWidget } from './OwedSummaryWidget';
 import { SetupChecklistCard } from './SetupChecklistCard';
 import { Button, Card, Money, Stat } from '../ui';
 import { AnimatedNumber } from '../common/AnimatedNumber';
+import { LazyInView } from '../common/LazyInView';
 import { HealthGauge } from '../gamification/HealthGauge';
 import { HealthGaugeCompact } from '../gamification/HealthGaugeCompact';
 import { useStaggerChildren } from '../../hooks/useStaggerChildren';
@@ -67,17 +68,17 @@ export const DashboardView: React.FC<DashboardViewProps> = ({ onOpenAddTx, onEdi
     <div className="space-y-6">
       {/* Welcome Banner when starting fresh (Mineral Card with Gold Accent) */}
       {transactions.length === 0 && (
-        <Card variant="surface" padding="none" className="relative overflow-hidden rounded-2xl border-primary/30 p-6 sm:p-8 text-white shadow-md">
+        <Card variant="surface" padding="none" className="relative overflow-hidden rounded-2xl border-primary/30 p-6 sm:p-8 text-ink-1 shadow-md">
           <div className="absolute top-0 left-0 right-0 h-[2px] bg-gradient-to-r from-transparent via-reward-fill to-transparent opacity-80" />
           <div className="max-w-2xl space-y-3 relative z-10">
             <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-primary-tint border border-primary/25 text-xs font-extrabold uppercase tracking-wider text-reward">
               <Sparkles className="w-3.5 h-3.5 text-reward" />
               <span>Clean Slate Ready</span>
             </span>
-            <h2 className="text-2xl sm:text-3xl font-black tracking-tight leading-tight text-white">
+            <h2 className="text-2xl sm:text-3xl font-black tracking-tight leading-tight text-ink-1">
               Welcome to your personal INR Wealth Tracker
             </h2>
-            <p className="text-sm text-slate-300 leading-relaxed">
+            <p className="text-sm text-ink-2 leading-relaxed">
               Start building your financial ledger. Log your monthly income, set category budgets, track investments, or import your bank &amp; UPI statement.
             </p>
 
@@ -93,7 +94,6 @@ export const DashboardView: React.FC<DashboardViewProps> = ({ onOpenAddTx, onEdi
                 variant="secondary"
                 onClick={() => setCurrentView('import')}
                 leftIcon={<UploadCloud className="w-4 h-4 text-reward" />}
-                className="bg-slate-800 hover:bg-slate-700 text-white border-slate-700"
               >
                 Import Statement (CSV/PDF)
               </Button>
@@ -106,7 +106,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({ onOpenAddTx, onEdi
                     resetToDemoData();
                   }
                 }}
-                className="text-xs text-ink-3 hover:text-white hover:bg-slate-800"
+                className="text-xs text-ink-3 hover:text-ink-1 hover:bg-sunken"
               >
                 Load Demo Dataset
               </Button>
@@ -152,8 +152,8 @@ export const DashboardView: React.FC<DashboardViewProps> = ({ onOpenAddTx, onEdi
                 <span
                   className={`font-numeric text-xs font-semibold px-2.5 py-1 rounded-md ${
                     currentMonthNet >= 0
-                      ? 'bg-positive-tint text-positive dark:bg-emerald-950/40 dark:text-emerald-400 border border-emerald-500/20'
-                      : 'bg-rose-50 text-rose-700 dark:bg-rose-950/40 dark:text-rose-400 border border-rose-500/20'
+                      ? 'bg-positive-tint text-positive border border-positive/20'
+                      : 'bg-negative-tint text-negative border border-negative/20'
                   }`}
                 >
                   <Money value={currentMonthNet} size="xs" sign="always" className="text-inherit font-semibold" /> cashflow this month
@@ -263,7 +263,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({ onOpenAddTx, onEdi
           <button
             type="button"
             onClick={() => handleTabChange('overview')}
-            className={`flex-1 flex items-center justify-center gap-1.5 py-2.5 rounded-xl transition-colors ${
+            className={`flex-1 flex items-center justify-center gap-1.5 py-3 min-h-[44px] rounded-xl transition-colors ${
               mobileTab === 'overview'
                 ? 'bg-surface dark:bg-line text-ink-1 dark:text-reward shadow-xs'
                 : 'text-ink-3 hover:text-slate-800 dark:hover:text-slate-200'
@@ -275,7 +275,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({ onOpenAddTx, onEdi
           <button
             type="button"
             onClick={() => handleTabChange('commitments')}
-            className={`flex-1 flex items-center justify-center gap-1.5 py-2.5 rounded-xl transition-colors ${
+            className={`flex-1 flex items-center justify-center gap-1.5 py-3 min-h-[44px] rounded-xl transition-colors ${
               mobileTab === 'commitments'
                 ? 'bg-surface dark:bg-line text-ink-1 dark:text-reward shadow-xs'
                 : 'text-ink-3 hover:text-slate-800 dark:hover:text-slate-200'
@@ -291,10 +291,16 @@ export const DashboardView: React.FC<DashboardViewProps> = ({ onOpenAddTx, onEdi
       <div className="sm:hidden space-y-4">
         {mobileTab === 'overview' && (
           <>
-            <React.Suspense fallback={null}>
-              <CashFlowChart />
-              <CategoryExpenseChart />
-            </React.Suspense>
+            <LazyInView minHeight={260}>
+              <React.Suspense fallback={null}>
+                <CashFlowChart />
+              </React.Suspense>
+            </LazyInView>
+            <LazyInView minHeight={260}>
+              <React.Suspense fallback={null}>
+                <CategoryExpenseChart />
+              </React.Suspense>
+            </LazyInView>
             <HealthGaugeCompact />
             <BudgetHealthWidget />
             <RecentTransactions onEditTransaction={onEditTransaction} />
@@ -315,14 +321,18 @@ export const DashboardView: React.FC<DashboardViewProps> = ({ onOpenAddTx, onEdi
         {/* LEVEL 2: CASH FLOW VELOCITY & CATEGORY ALLOCATION */}
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
           <div className="lg:col-span-7">
-            <React.Suspense fallback={null}>
-              <CashFlowChart />
-            </React.Suspense>
+            <LazyInView minHeight={300}>
+              <React.Suspense fallback={null}>
+                <CashFlowChart />
+              </React.Suspense>
+            </LazyInView>
           </div>
           <div className="lg:col-span-5">
-            <React.Suspense fallback={null}>
-              <CategoryExpenseChart />
-            </React.Suspense>
+            <LazyInView minHeight={300}>
+              <React.Suspense fallback={null}>
+                <CategoryExpenseChart />
+              </React.Suspense>
+            </LazyInView>
           </div>
         </div>
 

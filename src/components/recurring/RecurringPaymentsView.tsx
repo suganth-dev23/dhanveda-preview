@@ -167,7 +167,7 @@ export const RecurringPaymentsView: React.FC = () => {
  <div className="flex flex-wrap items-center gap-3">
  <button
  onClick={handleOpenAdd}
- className="inline-flex items-center gap-2 rounded-xl bg-primary hover:opacity-95 text-on-primary px-5 py-3 text-sm font-bold text-slate-950 shadow-sm focus:outline-none focus:ring-2 focus:ring-primary focus:ring-offset-2 dark:focus:ring-offset-slate-900 transition-colors active:scale-[0.98]"
+ className="inline-flex items-center gap-2 rounded-xl bg-primary hover:opacity-95 text-on-primary px-5 py-3 text-sm font-bold shadow-sm focus:outline-none focus:ring-2 focus:ring-primary focus:ring-offset-2 dark:focus:ring-offset-slate-900 transition-colors active:scale-[0.98]"
  >
  <Plus className="h-4 w-4 stroke-[2.5]" />
  <span>New Recurring Bill</span>

@@ -173,18 +173,20 @@ export const CategoriesView: React.FC = () => {
  <div className="flex items-center gap-1.5 opacity-80 group-hover:opacity-100 transition-opacity">
  <button
  onClick={() => handleEdit(cat)}
- className="flex h-8 w-8 items-center justify-center rounded-xl border border-line text-ink-3 hover:bg-sunken hover:text-slate-700 dark:hover:text-slate-200 transition-colors"
+ className="flex min-h-[44px] min-w-[44px] items-center justify-center rounded-xl border border-line text-ink-3 hover:bg-sunken hover:text-ink-1 transition-colors"
  title="Edit Category"
+ aria-label={`Edit ${cat.name} Category`}
  >
- <Edit3 className="w-3.5 h-3.5" />
+ <Edit3 className="w-4 h-4" />
  </button>
  {cat.isCustom && (
  <button
  onClick={() => handleDeleteCategory(cat)}
- className="flex h-8 w-8 items-center justify-center rounded-xl border border-line text-ink-3 hover:text-rose-600 hover:bg-rose-50 dark:hover:bg-rose-950/40 transition-colors"
+ className="flex min-h-[44px] min-w-[44px] items-center justify-center rounded-xl border border-line text-ink-3 hover:text-negative hover:bg-negative-tint transition-colors"
  title="Delete Category"
+ aria-label={`Delete ${cat.name} Category`}
  >
- <Trash2 className="w-3.5 h-3.5" />
+ <Trash2 className="w-4 h-4" />
  </button>
  )}
  </div>

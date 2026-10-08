@@ -925,7 +925,7 @@ export const TransactionModal: React.FC<TransactionModalProps> = ({
  <button
  type="button"
  onClick={handleCreateNewPerson}
- className="p-1.5 rounded-xl bg-primary hover:bg-warning-tint text-slate-950"
+ className="p-2 min-h-[44px] min-w-[44px] flex items-center justify-center rounded-xl bg-primary hover:opacity-90 text-on-primary"
  title="Save person"
  >
  <Check className="w-3.5 h-3.5" />

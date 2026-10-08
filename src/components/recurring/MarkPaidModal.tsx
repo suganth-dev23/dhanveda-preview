@@ -232,7 +232,7 @@ export const MarkPaidModal: React.FC<MarkPaidModalProps> = ({
           <button
             type="submit"
             disabled={isSubmitting}
-            className={`inline-flex items-center gap-2 rounded-xl text-on-primary px-5 py-2.5 text-sm font-bold text-slate-950 shadow-sm focus:outline-none focus:ring-2 focus:ring-primary focus:ring-offset-2 dark:focus:ring-offset-slate-900 transition-colors active:scale-95 ${
+            className={`inline-flex items-center gap-2 rounded-xl text-on-primary px-5 py-2.5 text-sm font-bold shadow-sm focus:outline-none focus:ring-2 focus:ring-primary focus:ring-offset-2 dark:focus:ring-offset-slate-900 transition-colors active:scale-95 ${
               isSubmitting ? 'bg-ink-3/40 cursor-not-allowed opacity-50' : 'bg-primary hover:opacity-95'
             }`}
           >

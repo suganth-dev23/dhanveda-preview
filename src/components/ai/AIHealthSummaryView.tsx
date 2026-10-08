@@ -186,7 +186,7 @@ export const AIHealthSummaryView: React.FC = () => {
  <h2 className="text-3xl sm:text-4xl font-black font-numeric tracking-tight text-ink-1">
  Zero-Telemetry
  </h2>
- <span className="text-sm font-semibold text-emerald-600 dark:text-emerald-400">
+ <span className="text-sm font-semibold text-positive">
  100% private in-browser
  </span>
  </div>
@@ -199,7 +199,7 @@ export const AIHealthSummaryView: React.FC = () => {
  <button
  onClick={handleGenerate}
  disabled={loading}
- className="inline-flex items-center gap-2 rounded-xl bg-primary hover:opacity-95 text-on-primary px-5 py-3 text-sm font-bold text-slate-950 shadow-sm focus:outline-none focus:ring-2 focus:ring-primary focus:ring-offset-2 dark:focus:ring-offset-slate-900 transition-colors active:scale-[0.98] disabled:opacity-50"
+ className="inline-flex items-center gap-2 rounded-xl bg-primary hover:opacity-95 text-on-primary px-5 py-3 text-sm font-bold shadow-sm focus:outline-none focus:ring-2 focus:ring-primary focus:ring-offset-2 dark:focus:ring-offset-slate-900 transition-colors active:scale-[0.98] disabled:opacity-50"
  >
  {loading ? (
  <>
@@ -220,14 +220,14 @@ export const AIHealthSummaryView: React.FC = () => {
  <div className="mt-6 grid grid-cols-1 min-[360px]:grid-cols-2 sm:grid-cols-4 gap-3 pt-6 border-t border-line">
  <div className="rounded-2xl bg-sunken p-3.5 border border-line">
  <span className="text-xs text-ink-3">Monthly Inflow</span>
- <p className="text-lg font-bold font-numeric text-emerald-600 dark:text-emerald-400 mt-0.5">
+ <p className="text-lg font-bold font-numeric text-positive mt-0.5">
  +{formatINR(currentMonthIncome)}
  </p>
  </div>
 
  <div className="rounded-2xl bg-sunken p-3.5 border border-line">
  <span className="text-xs text-ink-3">Monthly Outflow</span>
- <p className="text-lg font-bold font-numeric text-rose-600 dark:text-rose-400 mt-0.5">
+ <p className="text-lg font-bold font-numeric text-negative mt-0.5">
  -{formatINR(currentMonthExpense)}
  </p>
  </div>
@@ -258,7 +258,7 @@ export const AIHealthSummaryView: React.FC = () => {
  Select your provider and manage private API keys (stored solely in browser IndexedDB)
  </p>
  </div>
- <span className="text-xs font-semibold text-emerald-600 dark:text-emerald-400 flex items-center gap-1.5">
+ <span className="text-xs font-semibold text-positive flex items-center gap-1.5">
  <ShieldCheck className="w-3.5 h-3.5" />
  <span>Zero-Telemetry</span>
  </span>
@@ -297,7 +297,7 @@ export const AIHealthSummaryView: React.FC = () => {
  {info.name}
  </span>
  {pKey === 'gemini' && (
- <span className="text-xs font-extrabold px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-600 dark:text-emerald-400 border border-emerald-500/30">
+ <span className="text-xs font-extrabold px-2 py-0.5 rounded-full bg-positive-tint text-positive border border-positive/30">
  FREE TIER
  </span>
  )}
@@ -320,7 +320,7 @@ export const AIHealthSummaryView: React.FC = () => {
  href={selectedProviderInfo.link}
  target="_blank"
  rel="noopener noreferrer"
- className="text-xs font-bold text-emerald-600 dark:text-emerald-400 hover:underline flex items-center gap-1 shrink-0"
+ className="text-xs font-bold text-primary hover:underline flex items-center gap-1 shrink-0 min-h-[44px]"
  >
  <span>Get API Key</span>
  <ExternalLink className="w-3 h-3" />
@@ -340,7 +340,7 @@ export const AIHealthSummaryView: React.FC = () => {
  <button
  type="button"
  onClick={() => setShowKey(!showKey)}
- className="absolute right-3.5 top-1/2 -translate-y-1/2 text-xs font-semibold text-ink-3 hover:text-ink-1"
+ className="absolute right-2 top-1/2 -translate-y-1/2 min-w-[44px] min-h-[44px] flex items-center justify-center text-xs font-semibold text-ink-3 hover:text-ink-1"
  >
  {showKey ? 'Hide' : 'Show'}
  </button>
@@ -348,7 +348,7 @@ export const AIHealthSummaryView: React.FC = () => {
 
  <button
  onClick={handleSaveKey}
- className="px-5 py-2.5 rounded-xl bg-sunken hover:bg-sunken/80 text-ink-1 text-xs font-bold border border-line transition-colors"
+ className="px-5 py-2.5 min-h-[44px] rounded-xl bg-sunken hover:bg-sunken/80 text-ink-1 text-xs font-bold border border-line transition-colors flex items-center justify-center"
  >
  Save Key
  </button>
@@ -363,13 +363,13 @@ export const AIHealthSummaryView: React.FC = () => {
  <span>•</span>
  <span className="font-semibold text-ink-1 font-numeric">Expenses: {formatINR(currentMonthExpense)}</span>
  <span>•</span>
- <span className="font-semibold text-emerald-600 dark:text-emerald-400 font-numeric">Savings: {safeSavingsRateDisplay}</span>
+ <span className="font-semibold text-positive font-numeric">Savings: {safeSavingsRateDisplay}</span>
  </div>
 
  <button
  onClick={handleGenerate}
  disabled={loading}
- className="flex items-center justify-center gap-2 px-6 py-3 rounded-2xl bg-primary hover:opacity-95 text-on-primary shadow-xs font-extrabold text-xs sm:text-sm shadow-md transition-colors duration-200 active:scale-95 disabled:opacity-50"
+ className="flex items-center justify-center gap-2 px-6 py-3 min-h-[44px] rounded-2xl bg-primary hover:opacity-95 text-on-primary shadow-xs font-extrabold text-xs sm:text-sm shadow-md transition-colors duration-200 active:scale-95 disabled:opacity-50"
  >
  {loading ? (
  <>
@@ -378,7 +378,7 @@ export const AIHealthSummaryView: React.FC = () => {
  </>
  ) : (
  <>
- <Sparkles className="w-4 h-4 text-slate-950" />
+ <Sparkles className="w-4 h-4 text-on-primary" />
  <span>Generate Health Assessment</span>
  </>
  )}
@@ -386,8 +386,8 @@ export const AIHealthSummaryView: React.FC = () => {
  </div>
 
  {errorMsg && (
- <div className="p-4 bg-rose-500/10 border border-rose-500/30 rounded-2xl flex items-start gap-3 text-xs text-rose-600 dark:text-rose-300">
- <AlertCircle className="w-4 h-4 shrink-0 mt-0.5 text-rose-500" />
+ <div className="p-4 bg-negative-tint border border-negative/30 rounded-2xl flex items-start gap-3 text-xs text-negative">
+ <AlertCircle className="w-4 h-4 shrink-0 mt-0.5 text-negative" />
  <div className="flex-1">
  <span className="font-bold">Error: </span>
  {errorMsg}
@@ -402,7 +402,7 @@ export const AIHealthSummaryView: React.FC = () => {
  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-4 border-b border-line">
  <div>
  <div className="flex items-center gap-2.5">
- <span className="p-2 rounded-xl bg-emerald-500/10 text-emerald-600 dark:text-emerald-400">
+ <span className="p-2 rounded-xl bg-positive-tint text-positive">
  <CheckCircle className="w-5 h-5" />
  </span>
  <h3 className="text-base sm:text-lg font-bold text-ink-1">
@@ -417,7 +417,7 @@ export const AIHealthSummaryView: React.FC = () => {
  <div className="flex items-center gap-2">
  <button
  onClick={() => handleCopy(activeReport.summaryText)}
- className="flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl bg-sunken hover:bg-sunken/80 text-ink-2 text-xs font-semibold transition-colors border border-line"
+ className="flex items-center gap-1.5 px-3.5 py-2 min-h-[44px] rounded-xl bg-sunken hover:bg-sunken/80 text-ink-2 text-xs font-semibold transition-colors border border-line"
  title="Copy Markdown"
  >
  <Copy className="w-3.5 h-3.5" />
@@ -426,7 +426,7 @@ export const AIHealthSummaryView: React.FC = () => {
 
  <button
  onClick={() => handleDownload(activeReport.summaryText)}
- className="flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl bg-sunken hover:bg-sunken/80 text-ink-2 text-xs font-semibold transition-colors border border-line"
+ className="flex items-center gap-1.5 px-3.5 py-2 min-h-[44px] rounded-xl bg-sunken hover:bg-sunken/80 text-ink-2 text-xs font-semibold transition-colors border border-line"
  title="Export as Markdown file"
  >
  <Download className="w-3.5 h-3.5" />
@@ -472,14 +472,14 @@ export const AIHealthSummaryView: React.FC = () => {
  <div className="flex items-center gap-2">
  <button
  onClick={() => handleCopy(rep.summaryText)}
- className="p-2 rounded-xl text-ink-3 hover:text-ink-1 hover:bg-sunken"
+ className="p-2 min-w-[44px] min-h-[44px] flex items-center justify-center rounded-xl text-ink-3 hover:text-ink-1 hover:bg-sunken"
  title="Copy"
  >
  <Copy className="w-3.5 h-3.5" />
  </button>
  <button
  onClick={() => handleDeleteReport(rep.id)}
- className="p-2 rounded-xl text-ink-3 hover:text-rose-600 hover:bg-rose-50 dark:hover:bg-rose-950/40"
+ className="p-2 min-w-[44px] min-h-[44px] flex items-center justify-center rounded-xl text-ink-3 hover:text-negative hover:bg-negative-tint"
  title="Delete"
  >
  <Trash2 className="w-3.5 h-3.5" />

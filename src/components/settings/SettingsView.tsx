@@ -320,7 +320,7 @@ export const SettingsView: React.FC = () => {
  <h2 className="text-3xl sm:text-4xl font-black tracking-tight text-ink-1">
  100% Local-First
  </h2>
- <span className="text-sm font-semibold text-emerald-600 dark:text-emerald-400">
+ <span className="text-sm font-semibold text-positive">
  Private IndexedDB
  </span>
  </div>
@@ -333,7 +333,7 @@ export const SettingsView: React.FC = () => {
  <button
  type="button"
  onClick={handleExportBackup}
- className="inline-flex items-center gap-2 rounded-xl bg-primary hover:opacity-95 text-on-primary px-5 py-3 text-sm font-bold text-slate-950 shadow-sm transition-colors active:scale-[0.98]"
+ className="inline-flex items-center gap-2 rounded-xl bg-primary hover:opacity-95 text-on-primary px-5 py-3 text-sm font-bold shadow-sm transition-colors active:scale-[0.98]"
  >
  <Download className="h-4 w-4 stroke-[2.5]" />
  <span>Export Full Backup</span>
@@ -349,7 +349,7 @@ export const SettingsView: React.FC = () => {
  </div>
  <div className="rounded-2xl bg-sunken p-3.5 border border-line">
  <span className="text-xs text-ink-3">Cloud Sync</span>
- <p className={`text-lg font-bold mt-0.5 ${isDriveConnected ? 'text-emerald-600 dark:text-emerald-400' : 'text-ink-3'}`}>
+ <p className={`text-lg font-bold mt-0.5 ${isDriveConnected ? 'text-positive' : 'text-ink-3'}`}>
  {isDriveConnected ? 'Drive Connected' : 'Offline Mode'}
  </p>
  </div>
@@ -390,8 +390,8 @@ export const SettingsView: React.FC = () => {
  <h3 className="text-base font-bold text-ink-1 flex items-center gap-2">
  <span>Google Drive Cloud Sync &amp; Multi-Device</span>
  {isDriveConnected ? (
- <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-bold bg-emerald-100 text-emerald-700 dark:bg-emerald-950/60 dark:text-emerald-400">
- <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse"></span>
+ <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-bold bg-positive-tint text-positive">
+ <span className="w-1.5 h-1.5 rounded-full bg-positive animate-pulse"></span>
  Connected
  </span>
  ) : (
@@ -409,7 +409,7 @@ export const SettingsView: React.FC = () => {
  <button
  type="button"
  onClick={() => setIsSetupModalOpen(true)}
- className="self-start sm:self-auto flex items-center gap-1.5 px-3 py-1.5 bg-sunken hover:bg-sunken/80 text-ink-2 border border-line rounded-xl text-xs font-bold transition-colors shrink-0"
+ className="self-start sm:self-auto flex items-center gap-1.5 px-3.5 py-2.5 min-h-[44px] bg-sunken hover:bg-sunken/80 text-ink-2 border border-line rounded-xl text-xs font-bold transition-colors shrink-0"
  >
  <Key className="w-3.5 h-3.5" />
  <span>Setup Guide / Client ID</span>
@@ -479,7 +479,7 @@ export const SettingsView: React.FC = () => {
  disconnectDrive();
  }
  }}
- className="press flex items-center gap-1.5 px-3.5 py-1.5 bg-sunken hover:bg-rose-100 dark:hover:bg-rose-950/50 hover:text-rose-600 text-ink-2 rounded-xl text-xs font-bold transition-colors"
+ className="press flex items-center gap-1.5 px-3.5 py-2.5 min-h-[44px] bg-sunken hover:bg-negative-tint hover:text-negative text-ink-2 rounded-xl text-xs font-bold transition-colors"
  >
  <CloudOff className="w-3.5 h-3.5" />
  <span>Disconnect</span>
@@ -495,7 +495,7 @@ export const SettingsView: React.FC = () => {
  connectDrive();
  }
  }}
- className="press flex items-center gap-1.5 px-4 py-2 bg-primary hover:opacity-95 text-on-primary shadow-xs rounded-xl text-xs font-bold transition-colors shadow-sm"
+ className="press flex items-center gap-1.5 px-4 py-2.5 min-h-[44px] bg-primary hover:opacity-95 text-on-primary shadow-xs rounded-xl text-xs font-bold transition-colors shadow-sm"
  >
  <Cloud className="w-3.5 h-3.5" />
  <span>{googleAuthService.hasClientId() ? 'Connect Google Drive' : 'Configure Client ID'}</span>
@@ -675,7 +675,7 @@ export const SettingsView: React.FC = () => {
  window.dispatchEvent(new CustomEvent('dhanveda-checklist-reset'));
  alert('Setup checklist reset. Return to Dashboard to view.');
  }}
- className="press self-start sm:self-auto px-3.5 py-2 rounded-xl border border-line bg-surface hover:bg-sunken text-xs font-bold text-ink-1 transition-colors flex items-center gap-1.5 shadow-xs"
+ className="press self-start sm:self-auto px-3.5 py-2.5 min-h-[44px] rounded-xl border border-line bg-surface hover:bg-sunken text-xs font-bold text-ink-1 transition-colors flex items-center gap-1.5 shadow-xs"
  >
  <RotateCcw className="w-3.5 h-3.5 text-ink-3" />
  <span>Reset Setup Checklist</span>
@@ -763,7 +763,7 @@ export const SettingsView: React.FC = () => {
  <div className="flex justify-end">
  <button
  type="submit"
- className="press px-5 py-2.5 bg-primary hover:opacity-95 text-on-primary shadow-xs rounded-xl text-xs font-bold transition-colors shadow-sm"
+ className="press px-5 py-2.5 min-h-[44px] bg-primary hover:opacity-95 text-on-primary shadow-xs rounded-xl text-xs font-bold transition-colors shadow-sm"
  >
  Update AI Key
  </button>
@@ -800,7 +800,7 @@ export const SettingsView: React.FC = () => {
  <button
  type="button"
  onClick={handleExportBackup}
- className="press mt-4 flex items-center justify-center gap-1.5 px-4 py-2.5 bg-primary hover:opacity-95 text-on-primary shadow-xs rounded-xl text-xs font-bold transition-colors shadow-sm"
+ className="press mt-4 flex items-center justify-center gap-1.5 px-4 py-2.5 min-h-[44px] bg-primary hover:opacity-95 text-on-primary shadow-xs rounded-xl text-xs font-bold transition-colors shadow-sm"
  >
  <Download className="w-3.5 h-3.5" />
  <span>Download JSON Backup</span>
@@ -828,7 +828,7 @@ export const SettingsView: React.FC = () => {
  <button
  type="button"
  onClick={() => fileInputRef.current?.click()}
- className="press mt-4 w-full flex items-center justify-center gap-1.5 px-4 py-2.5 bg-sunken hover:bg-sunken/80 text-ink-1 rounded-xl text-xs font-bold transition-colors"
+ className="press mt-4 w-full flex items-center justify-center gap-1.5 px-4 py-2.5 min-h-[44px] bg-sunken hover:bg-sunken/80 text-ink-1 rounded-xl text-xs font-bold transition-colors"
  >
  <Upload className="w-3.5 h-3.5" />
  <span>Select Backup File</span>
@@ -850,7 +850,7 @@ export const SettingsView: React.FC = () => {
  <button
  type="button"
  onClick={() => setActiveTab('import')}
- className="press flex items-center gap-1.5 px-4 py-2 bg-primary hover:opacity-95 text-on-primary shadow-xs rounded-xl text-xs font-bold transition-colors shadow-xs shrink-0"
+ className="press flex items-center gap-1.5 px-4 py-2.5 min-h-[44px] bg-primary hover:opacity-95 text-on-primary shadow-xs rounded-xl text-xs font-bold transition-colors shadow-xs shrink-0"
  >
  <span>Open Statement Importer</span>
  <UploadCloud className="w-3.5 h-3.5" />
@@ -868,7 +868,7 @@ export const SettingsView: React.FC = () => {
  alert('Demo data loaded successfully!');
  }
  }}
- className="flex items-center gap-1.5 text-xs font-bold text-primary hover:underline"
+ className="flex items-center gap-1.5 text-xs font-bold text-primary hover:underline min-h-[44px]"
  >
  <RefreshCw className="w-3.5 h-3.5" />
  <span>Reset with Realistic Indian Sample Data</span>
@@ -882,7 +882,7 @@ export const SettingsView: React.FC = () => {
  alert('All data has been cleared.');
  }
  }}
- className="flex items-center gap-1.5 text-xs font-bold text-rose-600 dark:text-rose-400 hover:underline"
+ className="flex items-center gap-1.5 text-xs font-bold text-negative hover:underline min-h-[44px]"
  >
  <Trash2 className="w-3.5 h-3.5" />
  <span>Clear All Local Data</span>

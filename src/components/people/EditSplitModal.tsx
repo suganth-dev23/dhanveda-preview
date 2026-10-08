@@ -280,7 +280,7 @@ export const EditSplitModal: React.FC<EditSplitModalProps> = ({
             <button
               type="submit"
               disabled={isSubmitting}
-              className={`px-4 py-2 rounded-xl text-xs font-bold text-slate-950 text-on-primary shadow-md shadow-xs active:scale-95 transition-colors ${
+              className={`px-4 py-2 rounded-xl text-xs font-bold text-on-primary shadow-md shadow-xs active:scale-95 transition-colors ${
                 isSubmitting ? 'bg-ink-3/40 cursor-not-allowed opacity-50' : 'bg-primary hover:opacity-95'
               }`}
             >
