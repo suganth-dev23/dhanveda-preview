@@ -9,7 +9,6 @@ import {
 import { useFinance } from '../../context/FinanceContext';
 import { formatINR, formatCompactINR } from '../../utils/currency';
 import { formatMonth, getCurrentMonthYear } from '../../utils/date';
-import { useReducedMotion } from '../../hooks/useReducedMotion';
 import { AnimatedNumber } from '../common/AnimatedNumber';
 
 const PALETTE_FALLBACK = [
@@ -61,7 +60,6 @@ export const CategoryExpenseChart: React.FC = () => {
     categorySpendingThisMonth,
     currentMonthExpense,
   } = useFinance();
-  const reducedMotion = useReducedMotion();
 
   const currentMonthKey = useMemo(() => getCurrentMonthYear().key, []);
   const lastMonthKey = useMemo(() => {
@@ -301,7 +299,7 @@ export const CategoryExpenseChart: React.FC = () => {
                   outerRadius={80}
                   paddingAngle={3}
                   stroke="none"
-                  isAnimationActive={!reducedMotion}
+                  isAnimationActive={false}
                   animationDuration={500}
                   animationEasing="ease-out"
                 >

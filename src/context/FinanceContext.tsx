@@ -741,6 +741,7 @@ export const FinanceProvider: React.FC<{ children: React.ReactNode }> = ({ child
       const { valid: validTx, invalidCount } = validateStoreRecords(dbTx, normalizeTransaction);
       totalInvalid += invalidCount;
       setTransactions(validTx);
+      transactionsRef.current = validTx;
       prevTransactionsRef.current = validTx;
     }
     if (dbCat && Array.isArray(dbCat)) {
@@ -748,6 +749,7 @@ export const FinanceProvider: React.FC<{ children: React.ReactNode }> = ({ child
       totalInvalid += invalidCount;
       if (validCat.length > 0) {
         setCategories(validCat);
+        categoriesRef.current = validCat;
         prevCategoriesRef.current = validCat;
       }
     }
@@ -755,6 +757,7 @@ export const FinanceProvider: React.FC<{ children: React.ReactNode }> = ({ child
       const { valid: validBudgets, invalidCount } = validateStoreRecords(dbBudgets, normalizeBudget);
       totalInvalid += invalidCount;
       setBudgets(validBudgets);
+      budgetsRef.current = validBudgets;
       prevBudgetsRef.current = validBudgets;
     }
     if (dbEm) {
@@ -765,36 +768,42 @@ export const FinanceProvider: React.FC<{ children: React.ReactNode }> = ({ child
       const { valid: validInv, invalidCount } = validateStoreRecords(dbInv, normalizeInvestment);
       totalInvalid += invalidCount;
       setInvestments(validInv);
+      investmentsRef.current = validInv;
       prevInvestmentsRef.current = validInv;
     }
     if (dbDreams && Array.isArray(dbDreams)) {
       const { valid: validDreams, invalidCount } = validateStoreRecords(dbDreams, normalizeDream);
       totalInvalid += invalidCount;
       setDreams(validDreams);
+      dreamsRef.current = validDreams;
       prevDreamsRef.current = validDreams;
     }
     if (dbContacts && Array.isArray(dbContacts)) {
       const { valid: validContacts, invalidCount } = validateStoreRecords(dbContacts, normalizeContact);
       totalInvalid += invalidCount;
       setContacts(validContacts);
+      contactsRef.current = validContacts;
       prevContactsRef.current = validContacts;
     }
     if (dbSettlements && Array.isArray(dbSettlements)) {
       const { valid: validSettlements, invalidCount } = validateStoreRecords(dbSettlements, normalizeSettlement);
       totalInvalid += invalidCount;
       setSettlements(validSettlements);
+      settlementsRef.current = validSettlements;
       prevSettlementsRef.current = validSettlements;
     }
     if (dbRecPay && Array.isArray(dbRecPay)) {
       const { valid: validRecPay, invalidCount } = validateStoreRecords(dbRecPay, normalizeRecurringPayment);
       totalInvalid += invalidCount;
       setRecurringPayments(validRecPay);
+      recurringPaymentsRef.current = validRecPay;
       prevRecurringPaymentsRef.current = validRecPay;
     }
     if (dbRecLogs && Array.isArray(dbRecLogs)) {
       const { valid: validRecLogs, invalidCount } = validateStoreRecords(dbRecLogs, normalizeRecurringPaymentLog);
       totalInvalid += invalidCount;
       setRecurringPaymentLogs(validRecLogs);
+      recurringPaymentLogsRef.current = validRecLogs;
       prevRecurringPaymentLogsRef.current = validRecLogs;
     }
 
@@ -1108,6 +1117,7 @@ export const FinanceProvider: React.FC<{ children: React.ReactNode }> = ({ child
  };
  transactionsRef.current = [newTx, ...transactionsRef.current];
  setTransactions(prev => [newTx, ...prev]);
+ flushPendingSync();
  if (!options?.silent) {
  emitFinanceEvent({ type: 'transaction_added', tx: newTx });
  }
@@ -1125,6 +1135,7 @@ export const FinanceProvider: React.FC<{ children: React.ReactNode }> = ({ child
  }));
  transactionsRef.current = [...newTxs, ...transactionsRef.current];
  setTransactions(prev => [...newTxs, ...prev]);
+ flushPendingSync();
  };
 
  const updateTransaction = (id: string, updated: Partial<Transaction>) => {
@@ -1135,6 +1146,7 @@ export const FinanceProvider: React.FC<{ children: React.ReactNode }> = ({ child
  setTransactions(prev =>
  prev.map(t => (t.id === id ? { ...t, ...updated, updatedAt: now } : t))
  );
+ flushPendingSync();
  };
 
  const deleteTransaction = (id: string) => {
@@ -1208,6 +1220,7 @@ export const FinanceProvider: React.FC<{ children: React.ReactNode }> = ({ child
 
  settlementsRef.current = updatedSettlements;
  setSettlements(updatedSettlements);
+ flushPendingSync();
  emitFinanceEvent({ type: 'transaction_deleted', count: 1 });
  };
 
@@ -2280,6 +2293,16 @@ export const FinanceProvider: React.FC<{ children: React.ReactNode }> = ({ child
     saveAllToStore('recurringPaymentLogs', rebased.recurringPaymentLogs).catch(console.error);
     saveAllToStore('aiReports', []).catch(console.error);
 
+    transactionsRef.current = rebased.transactions;
+    categoriesRef.current = DEFAULT_CATEGORIES;
+    budgetsRef.current = INITIAL_BUDGETS;
+    investmentsRef.current = rebased.investments;
+    dreamsRef.current = rebased.dreams;
+    contactsRef.current = [];
+    settlementsRef.current = [];
+    recurringPaymentsRef.current = rebased.recurringPayments;
+    recurringPaymentLogsRef.current = rebased.recurringPaymentLogs;
+
     prevTransactionsRef.current = rebased.transactions;
     prevCategoriesRef.current = DEFAULT_CATEGORIES;
     prevBudgetsRef.current = INITIAL_BUDGETS;
@@ -2310,6 +2333,16 @@ export const FinanceProvider: React.FC<{ children: React.ReactNode }> = ({ child
   };
 
   const clearAllData = async () => {
+    transactionsRef.current = [];
+    categoriesRef.current = [];
+    budgetsRef.current = [];
+    investmentsRef.current = [];
+    dreamsRef.current = [];
+    contactsRef.current = [];
+    settlementsRef.current = [];
+    recurringPaymentsRef.current = [];
+    recurringPaymentLogsRef.current = [];
+
     prevTransactionsRef.current = [];
     prevCategoriesRef.current = [];
     prevBudgetsRef.current = [];
