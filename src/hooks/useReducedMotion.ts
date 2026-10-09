@@ -10,22 +10,14 @@ export function getPrefersReducedMotion(): boolean {
 
   // 1. Check DOM attribute override on <html> or <body>
   const motionAttr = document.documentElement.dataset.motion || document.body?.dataset.motion;
-  if (motionAttr === 'off' || motionAttr === 'reduced') return true;
   if (motionAttr === 'on' || motionAttr === 'standard') return false;
+  if (motionAttr === 'off' || motionAttr === 'reduced') return true;
 
   // 2. Check local storage override if present
   try {
-    const calmMode = localStorage.getItem('dhanveda_calm_mode');
     const stored = localStorage.getItem('dhanveda_motion');
-    if (calmMode === 'false' && stored === 'off') {
-      localStorage.removeItem('dhanveda_motion');
-      if (typeof document !== 'undefined') {
-        delete document.documentElement.dataset.motion;
-      }
-      return window.matchMedia?.('(prefers-reduced-motion: reduce)')?.matches ?? false;
-    }
-    if (stored === 'off') return true;
     if (stored === 'on') return false;
+    if (stored === 'off') return true;
   } catch {
     // Ignore localStorage access failures in restricted iframes
   }
