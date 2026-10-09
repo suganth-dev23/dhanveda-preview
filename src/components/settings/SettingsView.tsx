@@ -184,12 +184,11 @@ export const SettingsView: React.FC = () => {
         document.documentElement.setAttribute('data-calm', 'true');
       } else {
         document.documentElement.removeAttribute('data-calm');
-        if (localStorage.getItem('dhanveda_motion') === 'off') {
-          localStorage.removeItem('dhanveda_motion');
-          delete document.documentElement.dataset.motion;
-          setMotionPref('system');
-          window.dispatchEvent(new CustomEvent('dhanveda-motion-change'));
-        }
+        // Turning Calm Mode off explicitly restores standard fluid animations
+        document.documentElement.dataset.motion = 'on';
+        localStorage.setItem('dhanveda_motion', 'on');
+        setMotionPref('standard');
+        window.dispatchEvent(new CustomEvent('dhanveda-motion-change'));
       }
       window.dispatchEvent(new CustomEvent('dhanveda-calm-change'));
     } catch (err) {

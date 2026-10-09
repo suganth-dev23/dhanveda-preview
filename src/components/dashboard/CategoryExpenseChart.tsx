@@ -10,6 +10,7 @@ import { useFinance } from '../../context/FinanceContext';
 import { formatINR, formatCompactINR } from '../../utils/currency';
 import { formatMonth, getCurrentMonthYear } from '../../utils/date';
 import { AnimatedNumber } from '../common/AnimatedNumber';
+import { useReducedMotion } from '../../hooks/useReducedMotion';
 
 const PALETTE_FALLBACK = [
   '#10B981', // Emerald
@@ -60,6 +61,7 @@ export const CategoryExpenseChart: React.FC = () => {
     categorySpendingThisMonth,
     currentMonthExpense,
   } = useFinance();
+  const reducedMotion = useReducedMotion();
 
   const currentMonthKey = useMemo(() => getCurrentMonthYear().key, []);
   const lastMonthKey = useMemo(() => {
@@ -286,11 +288,11 @@ export const CategoryExpenseChart: React.FC = () => {
       ) : (
         <div className="flex flex-col sm:flex-row items-center gap-4 flex-1">
           {/* Donut Chart */}
-          <div className="w-full sm:w-1/2 h-[200px] relative flex items-center justify-center">
-            <ResponsiveContainer width="100%" height="100%" minWidth={100} minHeight={100}>
-              <PieChart>
+          <div className="w-full sm:w-1/2 h-[200px] min-w-0 relative flex items-center justify-center">
+            <ResponsiveContainer width="100%" height={200} minWidth={160} minHeight={160}>
+              <PieChart margin={{ top: 0, right: 0, bottom: 0, left: 0 }}>
                 <Pie
-                  key={selectedMonthKey}
+                  key={`${selectedMonthKey}-${expenseCategories.length}`}
                   data={expenseCategories}
                   dataKey="spent"
                   nameKey="category"
@@ -300,7 +302,10 @@ export const CategoryExpenseChart: React.FC = () => {
                   outerRadius={80}
                   paddingAngle={3}
                   stroke="none"
-                  isAnimationActive={false}
+                  isAnimationActive={!reducedMotion}
+                  animationDuration={700}
+                  animationEasing="ease-out"
+                  animationBegin={0}
                 >
                   {expenseCategories.map((entry, index) => (
                     <Cell

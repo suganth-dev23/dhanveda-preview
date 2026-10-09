@@ -51,14 +51,21 @@
         } catch (_) {}
 
         try {
+          // Self-heal: If motion was stuck in 'off' from prior calm mode toggle, clear it!
+          if (localStorage.getItem('dhanveda_motion') === 'off') {
+            localStorage.removeItem('dhanveda_motion');
+          }
+          // Set data-motion on documentElement: 'off' if explicitly reduced, otherwise 'on' for full fluid animations
+          if (localStorage.getItem('dhanveda_motion') === 'off') {
+            document.documentElement.dataset.motion = 'off';
+          } else {
+            document.documentElement.dataset.motion = 'on';
+          }
+
           if (localStorage.getItem('dhanveda_calm_mode') === 'true') {
             document.documentElement.setAttribute('data-calm', 'true');
           } else {
             document.documentElement.removeAttribute('data-calm');
-            if (localStorage.getItem('dhanveda_calm_mode') === 'false' && localStorage.getItem('dhanveda_motion') === 'off') {
-              localStorage.removeItem('dhanveda_motion');
-              delete document.documentElement.dataset.motion;
-            }
           }
         } catch (_) {}
       })();

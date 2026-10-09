@@ -19,7 +19,6 @@ import { OwedSummaryWidget } from './OwedSummaryWidget';
 import { SetupChecklistCard } from './SetupChecklistCard';
 import { Button, Card, Money, Stat } from '../ui';
 import { AnimatedNumber } from '../common/AnimatedNumber';
-import { LazyInView } from '../common/LazyInView';
 import { HealthGauge } from '../gamification/HealthGauge';
 import { HealthGaugeCompact } from '../gamification/HealthGaugeCompact';
 import { useStaggerChildren } from '../../hooks/useStaggerChildren';
@@ -291,16 +290,8 @@ export const DashboardView: React.FC<DashboardViewProps> = ({ onOpenAddTx, onEdi
       <div className="sm:hidden space-y-4">
         {mobileTab === 'overview' && (
           <>
-            <LazyInView minHeight={260}>
-              <React.Suspense fallback={null}>
-                <CashFlowChart />
-              </React.Suspense>
-            </LazyInView>
-            <LazyInView minHeight={260}>
-              <React.Suspense fallback={null}>
-                <CategoryExpenseChart />
-              </React.Suspense>
-            </LazyInView>
+            <CashFlowChart />
+            <CategoryExpenseChart />
             <HealthGaugeCompact />
             <BudgetHealthWidget />
             <RecentTransactions onEditTransaction={onEditTransaction} />
@@ -321,18 +312,10 @@ export const DashboardView: React.FC<DashboardViewProps> = ({ onOpenAddTx, onEdi
         {/* LEVEL 2: CASH FLOW VELOCITY & CATEGORY ALLOCATION */}
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
           <div className="lg:col-span-7">
-            <LazyInView minHeight={300}>
-              <React.Suspense fallback={null}>
-                <CashFlowChart />
-              </React.Suspense>
-            </LazyInView>
+            <CashFlowChart />
           </div>
           <div className="lg:col-span-5">
-            <LazyInView minHeight={300}>
-              <React.Suspense fallback={null}>
-                <CategoryExpenseChart />
-              </React.Suspense>
-            </LazyInView>
+            <CategoryExpenseChart />
           </div>
         </div>
 
