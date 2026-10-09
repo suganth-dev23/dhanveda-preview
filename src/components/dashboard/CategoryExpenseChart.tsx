@@ -9,11 +9,12 @@ import {
 import { useFinance } from '../../context/FinanceContext';
 import { formatINR, formatCompactINR } from '../../utils/currency';
 import { formatMonth, getCurrentMonthYear } from '../../utils/date';
+import { useReducedMotion } from '../../hooks/useReducedMotion';
 import { AnimatedNumber } from '../common/AnimatedNumber';
 
 const PALETTE_FALLBACK = [
   '#10B981', // Emerald
-  '#F5B742', // Suvarna Gold
+  '#3B82F6', // Blue
   '#6366F1', // Indigo
   '#F43F5E', // Rose Crimson
   '#0D9488', // Teal
@@ -35,7 +36,7 @@ const CategoryTooltip: React.FC<CategoryTooltipProps> = ({ active, payload, tota
     return (
       <div className="bg-surface/95 p-3 rounded-xl shadow-xl border border-line text-xs">
         <p className="font-bold text-ink-1 flex items-center gap-2">
-          <span className="w-2.5 h-2.5 rounded-full" style={{ backgroundColor: data.color || '#F5B742' }} />
+          <span className="w-2.5 h-2.5 rounded-full" style={{ backgroundColor: data.color || '#3B82F6' }} />
           {data.category}
         </p>
         <p className="font-numeric text-ink-2 font-semibold mt-1" data-money="true">
@@ -60,6 +61,7 @@ export const CategoryExpenseChart: React.FC = () => {
     categorySpendingThisMonth,
     currentMonthExpense,
   } = useFinance();
+  const reducedMotion = useReducedMotion();
 
   const currentMonthKey = useMemo(() => getCurrentMonthYear().key, []);
   const lastMonthKey = useMemo(() => {
@@ -181,12 +183,12 @@ export const CategoryExpenseChart: React.FC = () => {
               Spending by category
             </h3>
             {isLastMonth && (
-              <span className="text-xs font-semibold px-2 py-0.5 rounded-full bg-reward-fill text-ink-1 border border-reward-line">
+              <span className="text-xs font-semibold px-2 py-0.5 rounded-full bg-primary-tint text-primary border border-primary/25 animate-scale-in">
                 Last Month
               </span>
             )}
             {!isCurrentMonth && !isLastMonth && (
-              <span className="text-xs font-semibold px-2 py-0.5 rounded-full bg-primary-tint text-primary border border-primary/20">
+              <span className="text-xs font-semibold px-2 py-0.5 rounded-full bg-primary-tint text-primary border border-primary/20 animate-scale-in">
                 {formatMonth(selectedMonthKey, { shortYear: true })}
               </span>
             )}
@@ -202,9 +204,9 @@ export const CategoryExpenseChart: React.FC = () => {
             <button
               type="button"
               onClick={() => setSelectedMonthKey(currentMonthKey)}
-              className={`px-2.5 py-1 rounded-lg font-semibold transition-colors ${
+              className={`px-2.5 py-1 rounded-lg font-semibold transition-all ${
                 isCurrentMonth
-                  ? 'bg-surface text-ink-1 shadow-xs'
+                  ? 'bg-surface text-primary shadow-xs font-bold'
                   : 'text-ink-3 hover:text-ink-1'
               }`}
             >
@@ -213,9 +215,9 @@ export const CategoryExpenseChart: React.FC = () => {
             <button
               type="button"
               onClick={() => setSelectedMonthKey(lastMonthKey)}
-              className={`px-2.5 py-1 rounded-lg font-semibold transition-colors ${
+              className={`px-2.5 py-1 rounded-lg font-semibold transition-all ${
                 isLastMonth
-                  ? 'bg-surface text-ink-1 shadow-xs'
+                  ? 'bg-surface text-primary shadow-xs font-bold'
                   : 'text-ink-3 hover:text-ink-1'
               }`}
             >
@@ -290,6 +292,7 @@ export const CategoryExpenseChart: React.FC = () => {
             <ResponsiveContainer width="100%" height="100%" minWidth={100} minHeight={100}>
               <PieChart>
                 <Pie
+                  key={selectedMonthKey}
                   data={expenseCategories}
                   dataKey="spent"
                   nameKey="category"
@@ -299,9 +302,10 @@ export const CategoryExpenseChart: React.FC = () => {
                   outerRadius={80}
                   paddingAngle={3}
                   stroke="none"
-                  isAnimationActive={false}
-                  animationDuration={500}
+                  isAnimationActive={!reducedMotion}
+                  animationDuration={800}
                   animationEasing="ease-out"
+                  animationBegin={0}
                 >
                   {expenseCategories.map((entry, index) => (
                     <Cell
@@ -328,7 +332,11 @@ export const CategoryExpenseChart: React.FC = () => {
               const pct = activeMonthExpense > 0 ? (cat.spent / activeMonthExpense) * 100 : 0;
               const swatch = cat.color || PALETTE_FALLBACK[idx % PALETTE_FALLBACK.length];
               return (
-                <div key={cat.category} className="flex items-center justify-between text-xs">
+                <div
+                  key={cat.category}
+                  className="flex items-center justify-between text-xs transition-all duration-300 hover:translate-x-0.5"
+                  style={reducedMotion ? undefined : { animation: `fade-in 0.3s ease-out ${idx * 0.05}s both` }}
+                >
                   <div className="flex items-center gap-2 truncate">
                     <span className="w-2.5 h-2.5 rounded-full flex-shrink-0" style={{ backgroundColor: swatch }} />
                     <span className="font-medium text-ink-2 truncate">

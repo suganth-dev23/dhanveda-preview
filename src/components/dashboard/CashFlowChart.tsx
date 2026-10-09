@@ -14,6 +14,7 @@ import {
 } from 'recharts';
 import { Waves, BarChart3 } from 'lucide-react';
 import { useFinance } from '../../context/FinanceContext';
+import { useReducedMotion } from '../../hooks/useReducedMotion';
 import { formatINR, formatCompactINR } from '../../utils/currency';
 import { getRelativeMonthsList } from '../../utils/date';
 
@@ -43,6 +44,7 @@ const CashFlowTooltip: React.FC<any> = ({ active, payload, label }: any) => {
 
 export const CashFlowChart: React.FC = () => {
   const { transactions, darkMode } = useFinance();
+  const reducedMotion = useReducedMotion();
   const [chartMode, setChartMode] = useState<'wave' | 'bars'>('wave');
 
   const chartData = useMemo(() => {
@@ -153,48 +155,48 @@ export const CashFlowChart: React.FC = () => {
  wrapperStyle={{ fontSize: 11, paddingTop: 10 }}
  formatter={value => <span className="text-ink-2 font-medium">{value}</span>}
  />
- <Area
- type="monotone"
- dataKey="NetSavings"
- name="Net Savings"
- stroke="#10b981"
- strokeWidth={2.5}
- fillOpacity={1}
- fill="url(#emeraldCashFlow)"
- dot={{ r: 3.5, fill: '#10b981', strokeWidth: 2, stroke: darkMode ? '#0B0E14' : '#FFFFFF' }}
- activeDot={{ r: 5, fill: '#10B981' }}
- isAnimationActive={false}
- animationBegin={0}
- animationDuration={600}
- animationEasing="ease-out"
- />
- <Line
- type="monotone"
- dataKey="Income"
- name="Income"
- stroke="#059669"
- strokeWidth={1.5}
- strokeDasharray="4 4"
- dot={false}
- isAnimationActive={false}
- animationBegin={120}
- animationDuration={600}
- animationEasing="ease-out"
- />
- <Line
- type="monotone"
- dataKey="Expenses"
- name="Expenses"
- stroke="#64748B"
- strokeWidth={1.5}
- strokeDasharray="4 4"
- dot={false}
- isAnimationActive={false}
- animationBegin={240}
- animationDuration={600}
- animationEasing="ease-out"
- />
- </AreaChart>
+          <Area
+            type="monotone"
+            dataKey="NetSavings"
+            name="Net Savings"
+            stroke="#10b981"
+            strokeWidth={2.5}
+            fillOpacity={1}
+            fill="url(#emeraldCashFlow)"
+            dot={{ r: 3.5, fill: '#10b981', strokeWidth: 2, stroke: darkMode ? '#0B0E14' : '#FFFFFF' }}
+            activeDot={{ r: 5, fill: '#10B981' }}
+            isAnimationActive={!reducedMotion}
+            animationBegin={0}
+            animationDuration={800}
+            animationEasing="ease-out"
+          />
+          <Line
+            type="monotone"
+            dataKey="Income"
+            name="Income"
+            stroke="#059669"
+            strokeWidth={1.5}
+            strokeDasharray="4 4"
+            dot={false}
+            isAnimationActive={!reducedMotion}
+            animationBegin={120}
+            animationDuration={800}
+            animationEasing="ease-out"
+          />
+          <Line
+            type="monotone"
+            dataKey="Expenses"
+            name="Expenses"
+            stroke="#64748B"
+            strokeWidth={1.5}
+            strokeDasharray="4 4"
+            dot={false}
+            isAnimationActive={!reducedMotion}
+            animationBegin={240}
+            animationDuration={800}
+            animationEasing="ease-out"
+          />
+        </AreaChart>
  ) : (
  <ComposedChart data={chartData} margin={{ top: 10, right: 10, left: 0, bottom: 0 }}>
  <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="rgba(156, 163, 175, 0.12)" />
@@ -216,39 +218,39 @@ export const CashFlowChart: React.FC = () => {
  wrapperStyle={{ fontSize: 11, paddingTop: 10 }}
  formatter={value => <span className="text-ink-2 font-medium">{value}</span>}
  />
- <Bar
- dataKey="Income"
- fill="#10b981"
- radius={[4, 4, 0, 0]}
- maxBarSize={16}
- isAnimationActive={false}
- animationBegin={0}
- animationDuration={600}
- animationEasing="ease-out"
- />
- <Bar
- dataKey="Expenses"
- fill="#64748B"
- radius={[4, 4, 0, 0]}
- maxBarSize={16}
- isAnimationActive={false}
- animationBegin={120}
- animationDuration={600}
- animationEasing="ease-out"
- />
- <Line
- type="monotone"
- dataKey="NetSavings"
- name="Net Savings"
- stroke="var(--primary)"
- strokeWidth={2.5}
- dot={{ r: 3, fill: 'var(--primary)' }}
- isAnimationActive={false}
- animationBegin={240}
- animationDuration={600}
- animationEasing="ease-out"
- />
- </ComposedChart>
+          <Bar
+            dataKey="Income"
+            fill="#10b981"
+            radius={[4, 4, 0, 0]}
+            maxBarSize={16}
+            isAnimationActive={!reducedMotion}
+            animationBegin={0}
+            animationDuration={700}
+            animationEasing="ease-out"
+          />
+          <Bar
+            dataKey="Expenses"
+            fill="#64748B"
+            radius={[4, 4, 0, 0]}
+            maxBarSize={16}
+            isAnimationActive={!reducedMotion}
+            animationBegin={120}
+            animationDuration={700}
+            animationEasing="ease-out"
+          />
+          <Line
+            type="monotone"
+            dataKey="NetSavings"
+            name="Net Savings"
+            stroke="var(--primary)"
+            strokeWidth={2.5}
+            dot={{ r: 3, fill: 'var(--primary)' }}
+            isAnimationActive={!reducedMotion}
+            animationBegin={240}
+            animationDuration={700}
+            animationEasing="ease-out"
+          />
+        </ComposedChart>
  )}
  </ResponsiveContainer>
  </div>
