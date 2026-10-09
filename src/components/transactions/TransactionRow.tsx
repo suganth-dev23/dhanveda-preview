@@ -10,6 +10,7 @@ import { formatDate } from '../../utils/date';
 import { formatINR } from '../../utils/currency';
 import { IconRenderer } from '../common/IconRenderer';
 import { Money } from '../ui/Money';
+import { getCategoryBadgeStyle } from '../../constants/categoryTheme';
 
 export interface TransactionRowProps {
   tx: Transaction;
@@ -183,10 +184,7 @@ export const TransactionTableRow: React.FC<TransactionRowProps> = React.memo(fun
       <td className="py-3.5 px-4 whitespace-nowrap">
         <span
           className="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-semibold"
-          style={{
-            backgroundColor: `${catInfo?.color || '#64748b'}15`,
-            color: catInfo?.color || '#64748b',
-          }}
+          style={getCategoryBadgeStyle(catInfo?.color)}
         >
           {tx.category}
         </span>
@@ -301,11 +299,8 @@ export const TransactionCardRow: React.FC<TransactionRowProps> = React.memo(func
             </p>
             <div className="flex items-center gap-1.5 flex-wrap mt-0.5">
               <span
-                className="px-2 py-0.2 rounded-full text-xs font-bold"
-                style={{
-                  backgroundColor: `${catInfo?.color || '#64748b'}15`,
-                  color: catInfo?.color || '#64748b',
-                }}
+                className="px-2 py-0.5 rounded-full text-xs font-semibold"
+                style={getCategoryBadgeStyle(catInfo?.color)}
               >
                 {tx.category}
               </span>

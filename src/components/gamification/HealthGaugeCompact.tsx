@@ -26,10 +26,10 @@ export const HealthGaugeCompact: React.FC = () => {
  grade === 'Excellent'
  ? 'text-reward bg-amber-500/10 border-amber-500/20'
  : grade === 'Good'
- ? 'text-emerald-600 dark:text-emerald-400 bg-emerald-500/10 border-emerald-500/20'
+ ? 'text-emerald-700 dark:text-emerald-300 bg-emerald-500/10 border-emerald-500/20'
  : grade === 'Fair'
- ? 'text-amber-600 dark:text-amber-400 bg-amber-500/10 border-amber-500/20'
- : 'text-rose-600 dark:text-rose-400 bg-rose-500/10 border-rose-500/20';
+ ? 'text-amber-700 dark:text-amber-300 bg-amber-500/10 border-amber-500/20'
+ : 'text-rose-700 dark:text-rose-300 bg-rose-500/10 border-rose-500/20';
 
  const pillars = [
  { label: 'Savings', score: savingsScore, max: 25, color: 'bg-emerald-500' },

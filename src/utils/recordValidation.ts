@@ -15,8 +15,6 @@ import {
 import { getTodayString } from './date';
 import { MAX_AMOUNT, isValidAmount, isValidDate, roundMoney } from './validation';
 
-const DATE_REGEX = /^\d{4}-\d{2}-\d{2}$/;
-
 /**
  * Normalizes and validates a transaction record.
  * Returns a repaired Transaction object or null if critically invalid.

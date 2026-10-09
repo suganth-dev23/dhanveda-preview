@@ -4,7 +4,6 @@ import {
   Square,
   AlertTriangle,
   Trash2,
-  Tag,
 } from 'lucide-react';
 import { StagedTransaction, Category, PaymentMethod } from '../../types/finance';
 import { roundCurrency } from '../../utils/currency';

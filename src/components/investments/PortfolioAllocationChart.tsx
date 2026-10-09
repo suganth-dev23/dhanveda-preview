@@ -10,6 +10,27 @@ interface PortfolioAllocationChartProps {
 
 const TYPE_COLORS = INDIAN_WEALTH_PALETTE;
 
+const AllocationTooltip: React.FC<any> = ({ active, payload }: any) => {
+  if (active && payload && payload.length) {
+    const data = payload[0].payload;
+    return (
+      <div className="bg-slate-900/95 dark:bg-sunken p-3 rounded-xl shadow-xl border border-slate-700 dark:border-line text-xs font-numeric">
+        <p className="font-bold text-white flex items-center gap-2 font-sans">
+          <span className="w-2.5 h-2.5 rounded-full" style={{ backgroundColor: data.color }} />
+          {data.name}
+        </p>
+        <p className="text-slate-300 font-semibold mt-1">
+          Valuation: {formatINR(data.value)} ({data.percentage.toFixed(1)}%)
+        </p>
+        <p className="text-ink-3 text-xs mt-0.5">
+          Invested: {formatINR(data.invested)}
+        </p>
+      </div>
+    );
+  }
+  return null;
+};
+
 export const PortfolioAllocationChart: React.FC<PortfolioAllocationChartProps> = ({ investments }) => {
  const allocationData = useMemo(() => {
  const map: Record<string, { value: number; invested: number }> = {};
@@ -39,28 +60,7 @@ export const PortfolioAllocationChart: React.FC<PortfolioAllocationChartProps> =
  return investments.reduce((acc, i) => acc + (Number.isFinite(i.currentValue) ? i.currentValue : 0), 0);
  }, [investments]);
 
- const CustomTooltip = ({ active, payload }: any) => {
- if (active && payload && payload.length) {
- const data = payload[0].payload;
- return (
- <div className="bg-slate-900/95 dark:bg-sunken p-3 rounded-xl shadow-xl border border-slate-700 dark:border-line text-xs font-numeric">
- <p className="font-bold text-white flex items-center gap-2 font-sans">
- <span className="w-2.5 h-2.5 rounded-full" style={{ backgroundColor: data.color }} />
- {data.name}
- </p>
- <p className="text-slate-300 font-semibold mt-1">
- Valuation: {formatINR(data.value)} ({data.percentage.toFixed(1)}%)
- </p>
- <p className="text-ink-3 text-xs mt-0.5">
- Invested: {formatINR(data.invested)}
- </p>
- </div>
- );
- }
- return null;
- };
-
- return (
+  return (
  <div className="bg-surface rounded-2xl p-6 shadow-xs border border-line flex flex-col justify-between">
  <div className="flex items-center justify-between mb-2">
  <div>
@@ -97,7 +97,7 @@ export const PortfolioAllocationChart: React.FC<PortfolioAllocationChartProps> =
  <Cell key={entry.name} fill={entry.color} />
  ))}
  </Pie>
- <Tooltip content={<CustomTooltip />} />
+ <Tooltip content={<AllocationTooltip />} />
  </PieChart>
  </ResponsiveContainer>
  <div className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none text-center">

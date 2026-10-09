@@ -26,8 +26,7 @@ export function isValidAmount(amount: any): boolean {
 export function isValidDate(dateStr: any): boolean {
   if (typeof dateStr !== 'string') return false;
   if (!/^\d{4}-\d{2}-\d{2}$/.test(dateStr)) return false;
-  const [yearStr, monthStr, dayStr] = dateStr.split('-');
-  const year = parseInt(yearStr, 10);
+  const [, monthStr, dayStr] = dateStr.split('-');
   const month = parseInt(monthStr, 10);
   const day = parseInt(dayStr, 10);
   if (month < 1 || month > 12 || day < 1 || day > 31) return false;

@@ -17,60 +17,59 @@ import { useFinance } from '../../context/FinanceContext';
 import { formatINR, formatCompactINR } from '../../utils/currency';
 import { getRelativeMonthsList } from '../../utils/date';
 
+const CashFlowTooltip: React.FC<any> = ({ active, payload, label }: any) => {
+  if (active && payload && payload.length) {
+    return (
+      <div className="bg-surface p-3.5 rounded-xl shadow-xl border border-line text-xs space-y-1.5">
+        <p className="font-bold text-ink-1 border-b border-line pb-1">
+          {label}
+        </p>
+        {payload.map((item: any) => (
+          <div key={item.name} className="flex items-center justify-between gap-4">
+            <span className="flex items-center gap-1.5" style={{ color: item.color }}>
+              <span className="w-2 h-2 rounded-full" style={{ backgroundColor: item.color }} />
+              <span>{item.name}:</span>
+            </span>
+            <span className="font-bold font-numeric text-ink-1" data-money="true">
+              {formatINR(item.value)}
+            </span>
+          </div>
+        ))}
+      </div>
+    );
+  }
+  return null;
+};
+
 export const CashFlowChart: React.FC = () => {
- const { transactions, darkMode } = useFinance();
- const [chartMode, setChartMode] = useState<'wave' | 'bars'>('wave');
+  const { transactions, darkMode } = useFinance();
+  const [chartMode, setChartMode] = useState<'wave' | 'bars'>('wave');
 
- const safeTransactions = Array.isArray(transactions) ? transactions : [];
+  const chartData = useMemo(() => {
+    const list = Array.isArray(transactions) ? transactions : [];
+    const months = getRelativeMonthsList(6); // last 6 months
 
- const chartData = useMemo(() => {
- const months = getRelativeMonthsList(6); // last 6 months
+    return months.map(m => {
+      const monthTxs = list.filter(t => t.date && t.date.startsWith(m.key));
+      const income = monthTxs.filter(t => t.type === 'credit').reduce((a, b) => a + (Number.isFinite(b.amount) ? b.amount : 0), 0);
+      const expense = monthTxs.filter(t => t.type === 'debit').reduce((a, b) => a + (Number.isFinite(b.amount) ? b.amount : 0), 0);
+      const net = income - expense;
 
- return months.map(m => {
- const monthTxs = safeTransactions.filter(t => t.date && t.date.startsWith(m.key));
- const income = monthTxs.filter(t => t.type === 'credit').reduce((a, b) => a + (Number.isFinite(b.amount) ? b.amount : 0), 0);
- const expense = monthTxs.filter(t => t.type === 'debit').reduce((a, b) => a + (Number.isFinite(b.amount) ? b.amount : 0), 0);
- const net = income - expense;
+      return {
+        monthKey: m.key,
+        name: m.label,
+        Income: income,
+        Expenses: expense,
+        NetSavings: net,
+      };
+    });
+  }, [transactions]);
 
- return {
- monthKey: m.key,
- name: m.label,
- Income: income,
- Expenses: expense,
- NetSavings: net,
- };
- });
- }, [safeTransactions]);
+  const hasActivity = useMemo(() => {
+    return Array.isArray(transactions) && transactions.length > 0 && chartData.some(d => d.Income > 0 || d.Expenses > 0);
+  }, [transactions, chartData]);
 
- const hasActivity = useMemo(() => {
- return safeTransactions.length > 0 && chartData.some(d => d.Income > 0 || d.Expenses > 0);
- }, [safeTransactions.length, chartData]);
-
- const CustomTooltip = ({ active, payload, label }: any) => {
- if (active && payload && payload.length) {
- return (
- <div className="bg-surface p-3.5 rounded-xl shadow-xl border border-line text-xs space-y-1.5">
- <p className="font-bold text-ink-1 border-b border-line pb-1">
- {label}
- </p>
- {payload.map((item: any) => (
- <div key={item.name} className="flex items-center justify-between gap-4">
- <span className="flex items-center gap-1.5" style={{ color: item.color }}>
- <span className="w-2 h-2 rounded-full" style={{ backgroundColor: item.color }} />
- <span>{item.name}:</span>
- </span>
- <span className="font-bold font-numeric text-ink-1" data-money="true">
- {formatINR(item.value)}
- </span>
- </div>
- ))}
- </div>
- );
- }
- return null;
- };
-
- return (
+  return (
  <div className="bg-surface rounded-2xl p-4 sm:p-6 shadow-xs border border-line flex flex-col h-full">
  <div className="flex items-center justify-between mb-4">
  <div>
@@ -149,7 +148,7 @@ export const CashFlowChart: React.FC = () => {
  tick={{ fontSize: 11, fill: '#94A3B8' }}
  tickFormatter={value => formatCompactINR(value)}
  />
- <Tooltip content={<CustomTooltip />} />
+ <Tooltip content={<CashFlowTooltip />} />
  <Legend
  wrapperStyle={{ fontSize: 11, paddingTop: 10 }}
  formatter={value => <span className="text-ink-2 font-medium">{value}</span>}
@@ -212,7 +211,7 @@ export const CashFlowChart: React.FC = () => {
  tick={{ fontSize: 11, fill: '#94A3B8' }}
  tickFormatter={value => formatCompactINR(value)}
  />
- <Tooltip content={<CustomTooltip />} />
+ <Tooltip content={<CashFlowTooltip />} />
  <Legend
  wrapperStyle={{ fontSize: 11, paddingTop: 10 }}
  formatter={value => <span className="text-ink-2 font-medium">{value}</span>}

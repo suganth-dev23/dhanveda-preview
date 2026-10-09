@@ -17,12 +17,11 @@ export const LazyInView: React.FC<LazyInViewProps> = ({
   className = '',
   rootMargin = '150px',
 }) => {
-  const [isInView, setIsInView] = useState(false);
+  const [isInView, setIsInView] = useState(() => typeof IntersectionObserver === 'undefined');
   const containerRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     if (typeof IntersectionObserver === 'undefined') {
-      setIsInView(true);
       return;
     }
 

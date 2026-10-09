@@ -36,7 +36,7 @@ export const useGamification = () => {
 
 const LEVEL_THRESHOLDS = [0, 250, 600, 1200, 2000, 3000, 4500, 6500, 9000, 12000];
 
-export function calculateLevelInfo(totalXP: number): LevelInfo {
+function calculateLevelInfo(totalXP: number): LevelInfo {
  let level = 1;
  for (let i = 0; i < LEVEL_THRESHOLDS.length; i++) {
  if (totalXP >= LEVEL_THRESHOLDS[i]) {
@@ -394,29 +394,37 @@ export const GamificationProvider: React.FC<{ children: React.ReactNode }> = ({ 
 
  const levelInfo = useMemo(() => calculateLevelInfo(totalXP), [totalXP]);
 
- // Financial Health Score calculation
- const previousScoreRef = useRef<number | undefined>(undefined);
- const healthScore = useMemo<FinancialHealthScore>(() => {
- const budgetedCats = categorySpendingThisMonth.filter(c => c.budget > 0);
- const score = calculateFinancialHealthScore({
- monthlySavingsRate: currentMonthSavingsRate,
- budgetedCategories: budgetedCats,
- emergencyFundRunwayMonths,
- totalIOwe,
- totalOwedToMe,
- currentStreak: streak.currentStreak,
- previousScore: previousScoreRef.current,
- });
- previousScoreRef.current = score.overallScore;
- return score;
- }, [
- currentMonthSavingsRate,
- categorySpendingThisMonth,
- emergencyFundRunwayMonths,
- totalIOwe,
- totalOwedToMe,
- streak.currentStreak,
- ]);
+  // Financial Health Score calculation
+  const [previousScore, setPreviousScore] = useState<number | undefined>(undefined);
+  const healthScore = useMemo<FinancialHealthScore>(() => {
+    const budgetedCats = categorySpendingThisMonth.filter(c => c.budget > 0);
+    return calculateFinancialHealthScore({
+      monthlySavingsRate: currentMonthSavingsRate,
+      budgetedCategories: budgetedCats,
+      emergencyFundRunwayMonths,
+      totalIOwe,
+      totalOwedToMe,
+      currentStreak: streak.currentStreak,
+      previousScore,
+    });
+  }, [
+    currentMonthSavingsRate,
+    categorySpendingThisMonth,
+    emergencyFundRunwayMonths,
+    totalIOwe,
+    totalOwedToMe,
+    streak.currentStreak,
+    previousScore,
+  ]);
+
+  useEffect(() => {
+    if (healthScore.overallScore !== previousScore) {
+      const timer = setTimeout(() => {
+        setPreviousScore(healthScore.overallScore);
+      }, 500);
+      return () => clearTimeout(timer);
+    }
+  }, [healthScore.overallScore, previousScore]);
 
  return (
  <GamificationContext.Provider

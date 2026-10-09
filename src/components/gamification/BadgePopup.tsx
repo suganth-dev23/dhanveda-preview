@@ -40,27 +40,15 @@ const TIER_CONFIG: Record<BadgeTier, { label: string; border: string; bg: string
 };
 
 export const BadgePopup: React.FC = () => {
- const { subscribeFinanceEvent, setCurrentView } = useFinance();
- const [badgeQueue, setBadgeQueue] = useState<Badge[]>([]);
- const [currentBadge, setCurrentBadge] = useState<Badge | null>(null);
- const [isExiting, setIsExiting] = useState(false);
- const autoDismissTimerRef = useRef<NodeJS.Timeout | null>(null);
- const dismissTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const { subscribeFinanceEvent, setCurrentView } = useFinance();
+  const badgeQueueRef = useRef<Badge[]>([]);
+  const [currentBadge, setCurrentBadge] = useState<Badge | null>(null);
+  const [isExiting, setIsExiting] = useState(false);
+  const autoDismissTimerRef = useRef<NodeJS.Timeout | null>(null);
+  const dismissTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const handleDismissRef = useRef<() => void>(() => {});
 
- useScrollLock(Boolean(currentBadge));
-
- // Subscribe to badge_earned finance event
- useEffect(() => {
- if (!subscribeFinanceEvent) return;
-
- const unsubscribe = subscribeFinanceEvent((event) => {
- if (event.type === 'badge_earned' && event.badge) {
- setBadgeQueue(prev => [...prev, event.badge as Badge]);
- }
- });
-
- return unsubscribe;
- }, [subscribeFinanceEvent]);
+  useScrollLock(Boolean(currentBadge));
 
   const handleDismiss = useCallback(() => {
     if (autoDismissTimerRef.current) {
@@ -70,28 +58,49 @@ export const BadgePopup: React.FC = () => {
     setIsExiting(true);
     if (dismissTimeoutRef.current) clearTimeout(dismissTimeoutRef.current);
     dismissTimeoutRef.current = setTimeout(() => {
-      setCurrentBadge(null);
       setIsExiting(false);
+      const nextBadge = badgeQueueRef.current.shift();
+      if (nextBadge) {
+        setCurrentBadge(nextBadge);
+        dualSideCannons();
+        autoDismissTimerRef.current = setTimeout(() => {
+          handleDismissRef.current();
+        }, 5000);
+      } else {
+        setCurrentBadge(null);
+      }
     }, 180);
   }, []);
 
-  // Handle queue progression
   useEffect(() => {
-    if (!currentBadge && badgeQueue.length > 0) {
-      const nextBadge = badgeQueue[0];
-      setBadgeQueue(prev => prev.slice(1));
-      setCurrentBadge(nextBadge);
-      setIsExiting(false);
-      dualSideCannons();
+    handleDismissRef.current = handleDismiss;
+  }, [handleDismiss]);
 
-      if (autoDismissTimerRef.current) {
-        clearTimeout(autoDismissTimerRef.current);
+  // Subscribe to badge_earned finance event
+  useEffect(() => {
+    if (!subscribeFinanceEvent) return;
+
+    const unsubscribe = subscribeFinanceEvent((event) => {
+      if (event.type === 'badge_earned' && event.badge) {
+        const newBadge = event.badge as Badge;
+        setCurrentBadge(current => {
+          if (!current) {
+            dualSideCannons();
+            if (autoDismissTimerRef.current) clearTimeout(autoDismissTimerRef.current);
+            autoDismissTimerRef.current = setTimeout(() => {
+              handleDismissRef.current();
+            }, 5000);
+            return newBadge;
+          } else {
+            badgeQueueRef.current.push(newBadge);
+            return current;
+          }
+        });
       }
-      autoDismissTimerRef.current = setTimeout(() => {
-        handleDismiss();
-      }, 5000);
-    }
-  }, [currentBadge, badgeQueue, handleDismiss]);
+    });
+
+    return unsubscribe;
+  }, [subscribeFinanceEvent]);
 
   // Clean up timers on unmount
   useEffect(() => {

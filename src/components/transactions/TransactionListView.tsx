@@ -212,7 +212,7 @@ export const TransactionListView: React.FC<TransactionListViewProps> = React.mem
 
   // Highlight newly added transaction
   const [highlightedTxId, setHighlightedTxId] = useState<string | null>(null);
-  const [deletingTxIds, setDeletingTxIds] = useState<Set<string>>(new Set());
+  const [deletingTxIds] = useState<Set<string>>(() => new Set());
   const [selectedTxIds, setSelectedTxIds] = useState<Set<string>>(new Set());
 
   const handleDeleteTransaction = useCallback((txId: string, desc: string) => {
@@ -390,21 +390,19 @@ export const TransactionListView: React.FC<TransactionListViewProps> = React.mem
 
   const filteredNet = filteredIncome - filteredExpense;
 
-  // Prune selection when filters change so hidden transactions are not deleted unintentionally
-  useEffect(() => {
-    setSelectedTxIds(prev => {
-      if (prev.size === 0) return prev;
-      const visibleIds = new Set(filteredTransactions.map(t => t.id));
-      const next = new Set<string>();
-      prev.forEach(id => {
-        if (visibleIds.has(id)) {
-          next.add(id);
-        }
-      });
-      if (next.size === prev.size) return prev;
-      return next;
+  const visibleIds = useMemo(() => new Set(filteredTransactions.map(t => t.id)), [filteredTransactions]);
+
+  // Derive selection bounded to current visible items without cascading effects
+  const activeSelectedTxIds = useMemo(() => {
+    if (selectedTxIds.size === 0) return selectedTxIds;
+    const next = new Set<string>();
+    selectedTxIds.forEach(id => {
+      if (visibleIds.has(id)) {
+        next.add(id);
+      }
     });
-  }, [filteredTransactions]);
+    return next;
+  }, [selectedTxIds, visibleIds]);
 
   // Selection toggle callbacks (memoized)
   const toggleSelectAll = useCallback(() => {
@@ -435,8 +433,7 @@ export const TransactionListView: React.FC<TransactionListViewProps> = React.mem
 
   const handleBulkDelete = useCallback(() => {
     // Only target selected transactions that match current filter/view
-    const visibleIds = new Set(filteredTransactions.map(t => t.id));
-    const targetTxs = transactions.filter(t => selectedTxIds.has(t.id) && visibleIds.has(t.id));
+    const targetTxs = transactions.filter(t => activeSelectedTxIds.has(t.id));
     if (targetTxs.length === 0) return;
     const targetIds = targetTxs.map(t => t.id);
 
@@ -467,7 +464,7 @@ export const TransactionListView: React.FC<TransactionListViewProps> = React.mem
         }
       );
     }
-  }, [filteredTransactions, transactions, selectedTxIds, captureDeleteSnapshot, deleteMultipleTransactions, restoreTransactions, showToast, setSelectedTxIds]);
+  }, [transactions, activeSelectedTxIds, captureDeleteSnapshot, deleteMultipleTransactions, restoreTransactions, showToast, setSelectedTxIds]);
 
   const exportToCSV = useCallback(() => {
     if (filteredTransactions.length === 0) {
@@ -900,11 +897,11 @@ export const TransactionListView: React.FC<TransactionListViewProps> = React.mem
       </Card>
 
       {/* Bulk Action Bar when items selected */}
-      {selectedTxIds.size > 0 && (
+      {activeSelectedTxIds.size > 0 && (
         <Card variant="surface" padding="md" className="rounded-2xl flex items-center justify-between border-line shadow-xl shadow-black/10 transition-colors duration-200">
           <div className="flex items-center gap-3">
             <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-bold bg-primary-tint text-reward border border-primary/20">
-              {selectedTxIds.size} transaction{selectedTxIds.size > 1 ? 's' : ''} selected
+              {activeSelectedTxIds.size} transaction{activeSelectedTxIds.size > 1 ? 's' : ''} selected
             </span>
           </div>
 
@@ -970,7 +967,7 @@ export const TransactionListView: React.FC<TransactionListViewProps> = React.mem
                 group={group}
                 groupBy={groupBy}
                 isDesktop={isDesktop}
-                selectedTxIds={selectedTxIds}
+                selectedTxIds={activeSelectedTxIds}
                 highlightedTxId={highlightedTxId}
                 deletingTxIds={deletingTxIds}
                 categoryMap={categoryMap}

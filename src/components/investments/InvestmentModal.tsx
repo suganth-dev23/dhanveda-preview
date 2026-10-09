@@ -387,7 +387,7 @@ export const InvestmentModal: React.FC<InvestmentModalProps> = ({
           </div>
         </div>
         {parsedVal > 0 && (
-          <p className="text-xs text-emerald-600 dark:text-emerald-400 font-medium italic">
+          <p className="text-xs text-emerald-800 dark:text-emerald-300 font-semibold italic">
             Current Valuation: {numberToWordsINR(parsedVal)}
           </p>
         )}

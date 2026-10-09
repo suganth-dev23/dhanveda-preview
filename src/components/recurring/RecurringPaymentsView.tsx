@@ -195,7 +195,7 @@ export const RecurringPaymentsView: React.FC = () => {
  <span className="text-xs text-ink-3">Overdue Alerts</span>
  <p className={`text-lg font-bold font-numeric mt-0.5 ${
  overdueRecurringPayments.length > 0
- ? 'text-rose-600 dark:text-rose-400'
+ ? 'text-rose-700 dark:text-rose-300'
  : 'text-ink-1'
  }`}>
  {overdueRecurringPayments.length}
@@ -553,7 +553,7 @@ export const RecurringPaymentsView: React.FC = () => {
  {schedule.activeDueDate && payment.isActive && (
  <p className="text-xs text-ink-3">
  {schedule.isOverdue ? (
- <span className="text-rose-500 font-medium">
+ <span className="text-rose-700 dark:text-rose-300 font-semibold">
  Overdue: {formatDate(schedule.activeDueDate)}
  </span>
  ) : (

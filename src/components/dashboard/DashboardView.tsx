@@ -71,8 +71,8 @@ export const DashboardView: React.FC<DashboardViewProps> = ({ onOpenAddTx, onEdi
         <Card variant="surface" padding="none" className="relative overflow-hidden rounded-2xl border-primary/30 p-6 sm:p-8 text-ink-1 shadow-md">
           <div className="absolute top-0 left-0 right-0 h-[2px] bg-gradient-to-r from-transparent via-reward-fill to-transparent opacity-80" />
           <div className="max-w-2xl space-y-3 relative z-10">
-            <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-primary-tint border border-primary/25 text-xs font-extrabold uppercase tracking-wider text-reward">
-              <Sparkles className="w-3.5 h-3.5 text-reward" />
+            <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-primary-tint border border-primary/25 text-xs font-extrabold uppercase tracking-wider text-primary dark:text-primary">
+              <Sparkles className="w-3.5 h-3.5 text-primary dark:text-primary" />
               <span>Clean Slate Ready</span>
             </span>
             <h2 className="text-2xl sm:text-3xl font-black tracking-tight leading-tight text-ink-1">
@@ -164,7 +164,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({ onOpenAddTx, onEdi
                 <span className="font-numeric font-bold text-ink-1 dark:text-slate-200">
                   {safeSavingsRate.toFixed(1)}%
                 </span>
-                <span className="text-slate-300 dark:text-slate-700">•</span>
+                <span className="text-ink-4 dark:text-ink-3" aria-hidden="true">•</span>
                 <button
                   type="button"
                   onClick={() => setCurrentView('people')}

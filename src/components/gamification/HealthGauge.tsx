@@ -5,45 +5,6 @@ import { useFinance } from '../../context/FinanceContext';
 import { AnimatedNumber } from '../common/AnimatedNumber';
 import { useAnimatedProgress } from '../../hooks/useAnimatedProgress';
 
-/**
- * Converts polar coordinates to Cartesian coordinates for SVG arc rendering.
- * Strictly guarantees finite, valid numbers for x and y, preventing NaN in SVG paths.
- */
-export function polarToCartesian(centerX: number, centerY: number, radius: number, angleInDegrees: number) {
-  const safeCenterX = Number.isFinite(centerX) ? centerX : 120;
-  const safeCenterY = Number.isFinite(centerY) ? centerY : 120;
-  const safeRadius = Number.isFinite(radius) && radius > 0 ? radius : 85;
-  const safeAngle = Number.isFinite(angleInDegrees) ? angleInDegrees : 0;
-
-  const angleInRadians = ((safeAngle - 90) * Math.PI) / 180.0;
-  const x = safeCenterX + safeRadius * Math.cos(angleInRadians);
-  const y = safeCenterY + safeRadius * Math.sin(angleInRadians);
-
-  return {
-    x: Number.isFinite(x) ? Number(x.toFixed(2)) : safeCenterX,
-    y: Number.isFinite(y) ? Number(y.toFixed(2)) : safeCenterY,
-  };
-}
-
-/**
- * Generates an SVG path string for an arc.
- * Always produces a valid SVG path d string even if score is 0, 100, or NaN.
- */
-export function describeArc(x: number, y: number, radius: number, startAngle: number, endAngle: number): string {
-  const safeX = Number.isFinite(x) ? x : 120;
-  const safeY = Number.isFinite(y) ? y : 120;
-  const safeRadius = Number.isFinite(radius) && radius > 0 ? radius : 85;
-  const safeStart = Number.isFinite(startAngle) ? startAngle : 0;
-  const safeEnd = Number.isFinite(endAngle) ? endAngle : 0;
-
-  const start = polarToCartesian(safeX, safeY, safeRadius, safeEnd);
-  const end = polarToCartesian(safeX, safeY, safeRadius, safeStart);
-
-  const arcSweep = safeEnd - safeStart <= 180 ? '0' : '1';
-
-  return `M ${start.x} ${start.y} A ${safeRadius} ${safeRadius} 0 ${arcSweep} 0 ${end.x} ${end.y}`;
-}
-
 export const HealthGauge: React.FC = () => {
  const { healthScore, unlockedCount, badges } = useGamification();
  const { setCurrentView } = useFinance();
@@ -73,10 +34,10 @@ export const HealthGauge: React.FC = () => {
  grade === 'Excellent'
  ? 'text-reward bg-amber-500/10 border-amber-500/20'
  : grade === 'Good'
- ? 'text-emerald-600 dark:text-emerald-400 bg-emerald-500/10 border-emerald-500/20'
+ ? 'text-emerald-700 dark:text-emerald-300 bg-emerald-500/10 border-emerald-500/20'
  : grade === 'Fair'
- ? 'text-amber-600 dark:text-amber-400 bg-amber-500/10 border-amber-500/20'
- : 'text-rose-600 dark:text-rose-400 bg-rose-500/10 border-rose-500/20';
+ ? 'text-amber-700 dark:text-amber-300 bg-amber-500/10 border-amber-500/20'
+ : 'text-rose-700 dark:text-rose-300 bg-rose-500/10 border-rose-500/20';
 
  const statusLabel =
  grade === 'Excellent'
@@ -226,9 +187,9 @@ export const HealthGauge: React.FC = () => {
  <div className="flex items-baseline gap-1">
  <span className={`font-numeric text-3xl sm:text-4xl font-black ${
  grade === 'Needs Attention'
- ? 'text-rose-600 dark:text-rose-400'
+ ? 'text-rose-700 dark:text-rose-300'
  : grade === 'Fair'
- ? 'text-amber-600 dark:text-amber-400'
+ ? 'text-amber-700 dark:text-amber-300'
  : 'text-ink-1'
  }`}>
  <AnimatedNumber

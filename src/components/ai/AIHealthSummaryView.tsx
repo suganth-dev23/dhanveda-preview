@@ -241,7 +241,7 @@ export const AIHealthSummaryView: React.FC = () => {
 
  <div className="rounded-2xl bg-sunken p-3.5 border border-line">
  <span className="text-xs text-ink-3">Liquid Runway</span>
- <p className="text-lg font-bold font-numeric text-teal-600 dark:text-teal-400 mt-0.5">
+ <p className="text-lg font-bold font-numeric text-teal-700 dark:text-teal-300 mt-0.5">
  {safeRunwayDisplay}
  </p>
  </div>

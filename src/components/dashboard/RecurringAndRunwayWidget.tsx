@@ -59,8 +59,8 @@ export const CashFlowRunwayCard: React.FC = () => {
                 : `${(Number.isFinite(runway.runwayMonths) ? runway.runwayMonths : 0).toFixed(1)} mos`}
             </span>
             {runway.runwayMonths === Infinity && (
-              <span className="inline-flex items-center px-2 py-0.5 rounded-md text-xs font-semibold font-numeric bg-emerald-500/10 text-emerald-700 dark:text-emerald-400 border border-emerald-500/20">
-                <Money value={runway.netMonthlyCashFlow} tone="positive" size="xs" sign="always" />/mo surplus
+              <span className="inline-flex items-center px-2 py-0.5 rounded-md text-xs font-bold font-numeric bg-emerald-500/10 text-emerald-800 dark:text-emerald-300 border border-emerald-500/20">
+                <Money value={runway.netMonthlyCashFlow} className="text-inherit font-bold" size="xs" sign="always" />/mo surplus
               </span>
             )}
           </div>

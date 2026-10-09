@@ -15,7 +15,7 @@ import { INDIAN_WEALTH_PALETTE } from '../../constants/theme';
 import { useStaggerChildren } from '../../hooks/useStaggerChildren';
 import { Button, Card, Money, Stat } from '../ui';
 
-export function calculateCAGR(investedAmount: number, currentValue: number, years: number): number | null {
+function calculateCAGR(investedAmount: number, currentValue: number, years: number): number | null {
  if (!Number.isFinite(investedAmount) || !Number.isFinite(currentValue) || !Number.isFinite(years)) return null;
  if (investedAmount <= 0 || currentValue <= 0 || years <= 0) return null;
  try {
@@ -399,7 +399,7 @@ export const InvestmentsView: React.FC = () => {
  <div>
  <p>{inv.name}</p>
  {inv.sipAmount && (
- <p className="text-xs text-emerald-600 dark:text-emerald-400 font-normal font-numeric">
+ <p className="text-xs text-emerald-800 dark:text-emerald-300 font-medium font-numeric">
  SIP: <Money value={inv.sipAmount} size="xs" tone="positive" />/mo {inv.sipDay ? `(Day ${inv.sipDay})` : ''}
  </p>
  )}
