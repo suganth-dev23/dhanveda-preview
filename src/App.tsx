@@ -1,4 +1,4 @@
-import React, { useState, useEffect, Suspense, lazy } from 'react';
+import React, { useState, useEffect, useCallback, Suspense, lazy } from 'react';
 import { FinanceProvider, useFinance } from './context/FinanceContext';
 import { GamificationProvider } from './context/GamificationContext';
 import { ToastProvider } from './components/common/ToastProvider';
@@ -65,6 +65,7 @@ const MainContent: React.FC = () => {
     clearSaveError,
     crossTabStale,
     dismissCrossTabStale,
+    reloadFromDB,
   } = useFinance();
   const [isAddTxOpen, setIsAddTxOpen] = useState(false);
   const [editingTx, setEditingTx] = useState<Transaction | null>(null);
@@ -84,6 +85,10 @@ const MainContent: React.FC = () => {
     setEditingTx(tx);
     setIsAddTxOpen(true);
   };
+
+  const handleCloseAddTx = useCallback(() => {
+    setIsAddTxOpen(false);
+  }, []);
 
   return (
     <div className="flex min-h-screen bg-app dark:bg-app text-ink-1 transition-colors">
@@ -157,7 +162,14 @@ const MainContent: React.FC = () => {
               <div className="flex items-center gap-2 shrink-0 self-end sm:self-center">
                 <button
                   type="button"
-                  onClick={() => window.location.reload()}
+                  onClick={async () => {
+                    dismissCrossTabStale();
+                    try {
+                      await reloadFromDB();
+                    } catch {
+                      window.location.reload();
+                    }
+                  }}
                   className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-primary hover:opacity-95 text-on-primary text-xs font-semibold shadow-xs transition-colors cursor-pointer"
                 >
                   <RefreshCw className="w-3.5 h-3.5" />
@@ -264,7 +276,7 @@ const MainContent: React.FC = () => {
       {/* Global Add/Edit Transaction Modal */}
       <TransactionModal
         isOpen={isAddTxOpen}
-        onClose={() => setIsAddTxOpen(false)}
+        onClose={handleCloseAddTx}
         initialTransaction={editingTx}
       />
     </div>

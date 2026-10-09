@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useCallback } from 'react';
 import {
  Users,
  UserPlus,
@@ -54,6 +54,9 @@ export const PeopleView: React.FC = () => {
  // Modals state
  const [isAddContactOpen, setIsAddContactOpen] = useState(false);
  const [splitModalContact, setSplitModalContact] = useState<Contact | null>(null);
+ const handleCloseSplitModal = useCallback(() => {
+  setSplitModalContact(null);
+ }, []);
  const [settleContact, setSettleContact] = useState<{
  contact: Contact;
  amount: number;
@@ -1074,7 +1077,7 @@ export const PeopleView: React.FC = () => {
  {splitModalContact && (
  <TransactionModal
  isOpen={true}
- onClose={() => setSplitModalContact(null)}
+ onClose={handleCloseSplitModal}
  initialContactId={splitModalContact.id}
  />
  )}

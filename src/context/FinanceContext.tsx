@@ -284,11 +284,15 @@ export interface FinanceDataContextType {
 
 export interface FinanceContextType extends FinanceUiContextType, FinanceActionsContextType, FinanceDataContextType {}
 
+const SESSION_TAB_ID = typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function'
+  ? crypto.randomUUID()
+  : `tab-${Math.random().toString(36).substring(2)}-${Date.now()}`;
+
 function broadcastDataChange(store: string) {
   if (typeof BroadcastChannel !== 'undefined') {
     try {
       const bc = new BroadcastChannel('dhanveda-data');
-      bc.postMessage({ type: 'data_changed', store, at: Date.now() });
+      bc.postMessage({ type: 'data_changed', store, senderTabId: SESSION_TAB_ID, at: Date.now() });
       bc.close();
     } catch {}
   }
@@ -396,6 +400,8 @@ export const FinanceProvider: React.FC<{ children: React.ReactNode }> = ({ child
   const prevRecurringPaymentsRef = useRef<RecurringPayment[]>(recurringPayments);
   const prevRecurringPaymentLogsRef = useRef<RecurringPaymentLog[]>(recurringPaymentLogs);
   const prevAiReportsRef = useRef<AIHealthReport[]>(aiReports);
+  const prevEmergencyFundRef = useRef<EmergencyFund>(emergencyFund);
+  const prevAiSettingsRef = useRef<AISettings>(aiSettings);
 
   const pendingWritesRef = useRef<Map<string, () => Promise<void>>>(new Map());
   const debounceTimersRef = useRef<Map<string, any>>(new Map());
@@ -413,6 +419,9 @@ export const FinanceProvider: React.FC<{ children: React.ReactNode }> = ({ child
       bc = new BroadcastChannel('dhanveda-data');
       bc.onmessage = (event) => {
         if (event?.data?.type === 'data_changed') {
+          if (event.data?.senderTabId && event.data.senderTabId === SESSION_TAB_ID) {
+            return;
+          }
           setCrossTabStale(true);
         }
       };
@@ -586,16 +595,20 @@ export const FinanceProvider: React.FC<{ children: React.ReactNode }> = ({ child
       pendingWritesRef.current.delete(storeName);
       debounceTimersRef.current.delete(storeName);
       try {
+        let didChange = false;
         if (PERSIST_MODE === 'diff') {
           const prev = prevRef.current;
-          await persistDiff(storeName, prev, currentItems);
+          didChange = await persistDiff(storeName, prev, currentItems);
           prevRef.current = currentItems;
         } else {
           await saveAllToStore(storeName, currentItems);
           prevRef.current = currentItems;
+          didChange = true;
         }
         dirtyStoresRef.current.delete(storeName);
-        broadcastDataChange(storeName);
+        if (didChange) {
+          broadcastDataChange(storeName);
+        }
         if (dirtyStoresRef.current.size === 0) {
           setSaveError(null);
           retryBackoffMsRef.current = 1000;
@@ -632,7 +645,13 @@ export const FinanceProvider: React.FC<{ children: React.ReactNode }> = ({ child
       pendingWritesRef.current.delete(storeName);
       debounceTimersRef.current.delete(storeName);
       try {
+        const prevRef = storeName === 'emergencyFund' ? prevEmergencyFundRef : prevAiSettingsRef;
+        const hasChanged = JSON.stringify(prevRef.current) !== JSON.stringify(data);
+        if (!hasChanged) {
+          return;
+        }
         await saveSingleRecord(storeName, data);
+        prevRef.current = data as any;
         dirtyStoresRef.current.delete(storeName);
         broadcastDataChange(storeName);
         if (dirtyStoresRef.current.size === 0) {
@@ -763,6 +782,7 @@ export const FinanceProvider: React.FC<{ children: React.ReactNode }> = ({ child
     if (dbEm) {
       const { id: _id, ...cleanEm } = dbEm;
       setEmergencyFund(cleanEm);
+      prevEmergencyFundRef.current = cleanEm;
     }
     if (dbInv && Array.isArray(dbInv)) {
       const { valid: validInv, invalidCount } = validateStoreRecords(dbInv, normalizeInvestment);
@@ -810,11 +830,13 @@ export const FinanceProvider: React.FC<{ children: React.ReactNode }> = ({ child
     setUnreadableRecordCount(totalInvalid);
   if (dbAiSet) {
     const { id: _id, ...cleanAi } = dbAiSet;
-    setAISettings({
+    const normalizedAi: AISettings = {
       provider: cleanAi.provider || 'gemini',
       apiKey: cleanAi.apiKey || '',
       model: cleanAi.model || DEFAULT_AI_MODELS[cleanAi.provider || 'gemini'],
-    });
+    };
+    setAISettings(normalizedAi);
+    prevAiSettingsRef.current = normalizedAi;
   }
   if (dbAiReports && Array.isArray(dbAiReports)) {
     setAIReports(dbAiReports);
@@ -1394,8 +1416,9 @@ export const FinanceProvider: React.FC<{ children: React.ReactNode }> = ({ child
       });
     }
 
+    flushPendingSync();
     // Explicitly NO transaction_added / gamification events emitted!
-  }, []);
+  }, [flushPendingSync]);
 
  // Contact CRUD operations
  const addContact = (contactData: Omit<Contact, 'id' | 'createdAt'>): Contact => {

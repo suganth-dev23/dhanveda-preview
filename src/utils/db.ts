@@ -553,7 +553,7 @@ export async function persistDiff<T extends { id: string }>(
   storeName: ArrayStoreName,
   prevItems: T[],
   nextItems: T[]
-): Promise<void> {
+): Promise<boolean> {
   const prev = Array.isArray(prevItems) ? prevItems : [];
   const next = Array.isArray(nextItems) ? nextItems : [];
 
@@ -589,7 +589,7 @@ export async function persistDiff<T extends { id: string }>(
   }
 
   if (toDelete.length === 0 && toPut.length === 0) {
-    return;
+    return false;
   }
 
   try {
@@ -602,6 +602,7 @@ export async function persistDiff<T extends { id: string }>(
       await tx.store.put(item as any);
     }
     await tx.done;
+    return true;
   } catch (err) {
     if (isQuotaExceededError(err)) {
       console.error(`[DB] Storage quota exceeded while persisting diff to "${storeName}":`, err);
