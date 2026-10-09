@@ -53,6 +53,12 @@
         try {
           if (localStorage.getItem('dhanveda_calm_mode') === 'true') {
             document.documentElement.setAttribute('data-calm', 'true');
+          } else {
+            document.documentElement.removeAttribute('data-calm');
+            if (localStorage.getItem('dhanveda_calm_mode') === 'false' && localStorage.getItem('dhanveda_motion') === 'off') {
+              localStorage.removeItem('dhanveda_motion');
+              delete document.documentElement.dataset.motion;
+            }
           }
         } catch (_) {}
       })();

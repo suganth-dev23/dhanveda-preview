@@ -14,7 +14,6 @@ import {
 } from 'recharts';
 import { Waves, BarChart3 } from 'lucide-react';
 import { useFinance } from '../../context/FinanceContext';
-import { useReducedMotion } from '../../hooks/useReducedMotion';
 import { formatINR, formatCompactINR } from '../../utils/currency';
 import { getRelativeMonthsList } from '../../utils/date';
 
@@ -44,7 +43,6 @@ const CashFlowTooltip: React.FC<any> = ({ active, payload, label }: any) => {
 
 export const CashFlowChart: React.FC = () => {
   const { transactions, darkMode } = useFinance();
-  const reducedMotion = useReducedMotion();
   const [chartMode, setChartMode] = useState<'wave' | 'bars'>('wave');
 
   const chartData = useMemo(() => {
@@ -165,10 +163,7 @@ export const CashFlowChart: React.FC = () => {
             fill="url(#emeraldCashFlow)"
             dot={{ r: 3.5, fill: '#10b981', strokeWidth: 2, stroke: darkMode ? '#0B0E14' : '#FFFFFF' }}
             activeDot={{ r: 5, fill: '#10B981' }}
-            isAnimationActive={!reducedMotion}
-            animationBegin={0}
-            animationDuration={800}
-            animationEasing="ease-out"
+            isAnimationActive={false}
           />
           <Line
             type="monotone"
@@ -178,10 +173,7 @@ export const CashFlowChart: React.FC = () => {
             strokeWidth={1.5}
             strokeDasharray="4 4"
             dot={false}
-            isAnimationActive={!reducedMotion}
-            animationBegin={120}
-            animationDuration={800}
-            animationEasing="ease-out"
+            isAnimationActive={false}
           />
           <Line
             type="monotone"
@@ -191,10 +183,7 @@ export const CashFlowChart: React.FC = () => {
             strokeWidth={1.5}
             strokeDasharray="4 4"
             dot={false}
-            isAnimationActive={!reducedMotion}
-            animationBegin={240}
-            animationDuration={800}
-            animationEasing="ease-out"
+            isAnimationActive={false}
           />
         </AreaChart>
  ) : (
@@ -223,20 +212,14 @@ export const CashFlowChart: React.FC = () => {
             fill="#10b981"
             radius={[4, 4, 0, 0]}
             maxBarSize={16}
-            isAnimationActive={!reducedMotion}
-            animationBegin={0}
-            animationDuration={700}
-            animationEasing="ease-out"
+            isAnimationActive={false}
           />
           <Bar
             dataKey="Expenses"
             fill="#64748B"
             radius={[4, 4, 0, 0]}
             maxBarSize={16}
-            isAnimationActive={!reducedMotion}
-            animationBegin={120}
-            animationDuration={700}
-            animationEasing="ease-out"
+            isAnimationActive={false}
           />
           <Line
             type="monotone"
@@ -245,10 +228,7 @@ export const CashFlowChart: React.FC = () => {
             stroke="var(--primary)"
             strokeWidth={2.5}
             dot={{ r: 3, fill: 'var(--primary)' }}
-            isAnimationActive={!reducedMotion}
-            animationBegin={240}
-            animationDuration={700}
-            animationEasing="ease-out"
+            isAnimationActive={false}
           />
         </ComposedChart>
  )}

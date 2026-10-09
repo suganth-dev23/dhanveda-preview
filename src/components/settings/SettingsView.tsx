@@ -76,25 +76,26 @@ export const SettingsView: React.FC = () => {
  return 'system';
  });
 
- const handleMotionChange = (pref: 'system' | 'standard' | 'reduced') => {
- setMotionPref(pref);
- if (typeof window === 'undefined') return;
- try {
- if (pref === 'system') {
- delete document.documentElement.dataset.motion;
- localStorage.removeItem('dhanveda_motion');
- } else if (pref === 'standard') {
- document.documentElement.dataset.motion = 'on';
- localStorage.setItem('dhanveda_motion', 'on');
- } else if (pref === 'reduced') {
- document.documentElement.dataset.motion = 'off';
- localStorage.setItem('dhanveda_motion', 'off');
- }
- window.dispatchEvent(new CustomEvent('dhanveda-motion-change'));
- } catch (err) {
- console.error('Failed to update motion preference:', err);
- }
- };
+  const handleMotionChange = (pref: 'system' | 'standard' | 'reduced') => {
+    const targetPref = (motionPref === pref && pref === 'reduced') ? 'standard' : pref;
+    setMotionPref(targetPref);
+    if (typeof window === 'undefined') return;
+    try {
+      if (targetPref === 'system') {
+        delete document.documentElement.dataset.motion;
+        localStorage.removeItem('dhanveda_motion');
+      } else if (targetPref === 'standard') {
+        document.documentElement.dataset.motion = 'on';
+        localStorage.setItem('dhanveda_motion', 'on');
+      } else if (targetPref === 'reduced') {
+        document.documentElement.dataset.motion = 'off';
+        localStorage.setItem('dhanveda_motion', 'off');
+      }
+      window.dispatchEvent(new CustomEvent('dhanveda-motion-change'));
+    } catch (err) {
+      console.error('Failed to update motion preference:', err);
+    }
+  };
 
  const [isPrivacy, setIsPrivacy] = useState(() => {
    if (typeof window === 'undefined') return false;
@@ -174,21 +175,27 @@ export const SettingsView: React.FC = () => {
    }
  };
 
- const handleCalmModeToggle = () => {
-   const next = !isCalmMode;
-   setIsCalmMode(next);
-   try {
-     localStorage.setItem('dhanveda_calm_mode', next ? 'true' : 'false');
-     if (next) {
-       document.documentElement.setAttribute('data-calm', 'true');
-     } else {
-       document.documentElement.removeAttribute('data-calm');
-     }
-     window.dispatchEvent(new CustomEvent('dhanveda-calm-change'));
-   } catch (err) {
-     console.error('Failed to toggle calm mode:', err);
-   }
- };
+  const handleCalmModeToggle = () => {
+    const next = !isCalmMode;
+    setIsCalmMode(next);
+    try {
+      localStorage.setItem('dhanveda_calm_mode', next ? 'true' : 'false');
+      if (next) {
+        document.documentElement.setAttribute('data-calm', 'true');
+      } else {
+        document.documentElement.removeAttribute('data-calm');
+        if (localStorage.getItem('dhanveda_motion') === 'off') {
+          localStorage.removeItem('dhanveda_motion');
+          delete document.documentElement.dataset.motion;
+          setMotionPref('system');
+          window.dispatchEvent(new CustomEvent('dhanveda-motion-change'));
+        }
+      }
+      window.dispatchEvent(new CustomEvent('dhanveda-calm-change'));
+    } catch (err) {
+      console.error('Failed to toggle calm mode:', err);
+    }
+  };
 
  const handleSaveAI = (e: React.FormEvent) => {
  e.preventDefault();
@@ -588,7 +595,7 @@ export const SettingsView: React.FC = () => {
  <span className={`text-xs font-bold uppercase tracking-wider ${
  motionPref === 'reduced' ? 'text-primary' : 'text-ink-3'
  }`}>
- Calm
+ Minimal
  </span>
  {motionPref === 'reduced' && <CheckCircle className="w-4 h-4 text-primary" />}
  </div>

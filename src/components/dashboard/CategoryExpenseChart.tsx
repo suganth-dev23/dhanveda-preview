@@ -9,7 +9,6 @@ import {
 import { useFinance } from '../../context/FinanceContext';
 import { formatINR, formatCompactINR } from '../../utils/currency';
 import { formatMonth, getCurrentMonthYear } from '../../utils/date';
-import { useReducedMotion } from '../../hooks/useReducedMotion';
 import { AnimatedNumber } from '../common/AnimatedNumber';
 
 const PALETTE_FALLBACK = [
@@ -61,7 +60,6 @@ export const CategoryExpenseChart: React.FC = () => {
     categorySpendingThisMonth,
     currentMonthExpense,
   } = useFinance();
-  const reducedMotion = useReducedMotion();
 
   const currentMonthKey = useMemo(() => getCurrentMonthYear().key, []);
   const lastMonthKey = useMemo(() => {
@@ -302,10 +300,7 @@ export const CategoryExpenseChart: React.FC = () => {
                   outerRadius={80}
                   paddingAngle={3}
                   stroke="none"
-                  isAnimationActive={!reducedMotion}
-                  animationDuration={800}
-                  animationEasing="ease-out"
-                  animationBegin={0}
+                  isAnimationActive={false}
                 >
                   {expenseCategories.map((entry, index) => (
                     <Cell
@@ -334,8 +329,7 @@ export const CategoryExpenseChart: React.FC = () => {
               return (
                 <div
                   key={cat.category}
-                  className="flex items-center justify-between text-xs transition-all duration-300 hover:translate-x-0.5"
-                  style={reducedMotion ? undefined : { animation: `fade-in 0.3s ease-out ${idx * 0.05}s both` }}
+                  className="flex items-center justify-between text-xs"
                 >
                   <div className="flex items-center gap-2 truncate">
                     <span className="w-2.5 h-2.5 rounded-full flex-shrink-0" style={{ backgroundColor: swatch }} />
