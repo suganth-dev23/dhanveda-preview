@@ -240,11 +240,31 @@ export function getDB(): Promise<IDBPDatabase<DhanVedaDBSchema>> {
  */
 export async function migrateFromLocalStorage(): Promise<boolean> {
   try {
+    if (
+      typeof localStorage !== 'undefined' &&
+      localStorage.getItem('dhanveda_idb_migrated_v2') === '1'
+    ) {
+      return false;
+    }
+    const hasV2 =
+      typeof localStorage !== 'undefined' &&
+      Object.keys(localStorage).some(k => k.startsWith('dhanveda_finances_v2_'));
+    const hasV1 =
+      typeof localStorage !== 'undefined' &&
+      Object.keys(localStorage).some(k => k.startsWith('dhanveda_finances_v1_'));
+    if (!hasV2 && !hasV1) {
+      try {
+        localStorage.setItem('dhanveda_idb_migrated_v2', '1');
+      } catch {}
+      return false;
+    }
+
     const db = await getDB();
-    const hasV2 = typeof localStorage !== 'undefined' && Object.keys(localStorage).some(k => k.startsWith('dhanveda_finances_v2_'));
     const prefixes = hasV2 ? ['dhanveda_finances_v2_'] : ['dhanveda_finances_v1_'];
     if (hasV2) {
-      Object.keys(localStorage).filter(k => k.startsWith('dhanveda_finances_v1_')).forEach(k => localStorage.removeItem(k));
+      Object.keys(localStorage)
+        .filter(k => k.startsWith('dhanveda_finances_v1_'))
+        .forEach(k => localStorage.removeItem(k));
     }
     let migratedCount = 0;
 
@@ -433,8 +453,13 @@ export async function migrateFromLocalStorage(): Promise<boolean> {
       }
     }
 
-    // Also run split data normalization
-    await normalizeSplitData();
+    // Only run split data normalization when legacy localStorage records were migrated
+    if (migratedCount > 0) {
+      await normalizeSplitData();
+    }
+    try {
+      localStorage.setItem('dhanveda_idb_migrated_v2', '1');
+    } catch {}
 
     return migratedCount > 0;
   } catch (error) {
@@ -496,6 +521,78 @@ export async function getAllFromStore<T>(
 ): Promise<T[]> {
   const db = await getDB();
   return (await db.getAll(storeName)) as T[];
+}
+
+/**
+ * Single-transaction bulk reader for all 13 stores on startup.
+ * Avoids opening 13 separate IndexedDB transactions and eliminates readwrite lock contention.
+ */
+export async function loadAllStoresFromDB() {
+  const db = await getDB();
+  const tx = db.transaction(
+    [
+      'transactions',
+      'categories',
+      'budgets',
+      'emergencyFund',
+      'investments',
+      'dreams',
+      'contacts',
+      'settlements',
+      'aiSettings',
+      'aiReports',
+      'userPreferences',
+      'recurringPayments',
+      'recurringPaymentLogs',
+    ],
+    'readonly'
+  );
+
+  const [
+    dbTx,
+    dbCat,
+    dbBudgets,
+    dbEm,
+    dbInv,
+    dbDreams,
+    dbContacts,
+    dbSettlements,
+    dbAiSet,
+    dbAiReports,
+    dbPrefs,
+    dbRecPay,
+    dbRecLogs,
+  ] = await Promise.all([
+    tx.objectStore('transactions').getAll(),
+    tx.objectStore('categories').getAll(),
+    tx.objectStore('budgets').getAll(),
+    tx.objectStore('emergencyFund').get('current'),
+    tx.objectStore('investments').getAll(),
+    tx.objectStore('dreams').getAll(),
+    tx.objectStore('contacts').getAll(),
+    tx.objectStore('settlements').getAll(),
+    tx.objectStore('aiSettings').get('current'),
+    tx.objectStore('aiReports').getAll(),
+    tx.objectStore('userPreferences').get('general'),
+    tx.objectStore('recurringPayments').getAll(),
+    tx.objectStore('recurringPaymentLogs').getAll(),
+  ]);
+
+  return {
+    dbTx,
+    dbCat,
+    dbBudgets,
+    dbEm,
+    dbInv,
+    dbDreams,
+    dbContacts,
+    dbSettlements,
+    dbAiSet,
+    dbAiReports,
+    dbPrefs,
+    dbRecPay,
+    dbRecLogs,
+  };
 }
 
 export type ArrayStoreName =

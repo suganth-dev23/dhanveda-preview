@@ -12,3 +12,6 @@ export * from './Sheet';
 export * from './Skeleton';
 export * from './EmptyState';
 export * from './Toast';
+export * from './AnimatedCurrency';
+export * from './SegmentedPill';
+

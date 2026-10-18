@@ -3,9 +3,10 @@ import { Modal } from '../common/Modal';
 import { useFinance } from '../../context/FinanceContext';
 import { RecurringPayment, RecurrenceFrequency, PaymentMethod } from '../../types/finance';
 import { numberToWordsINR } from '../../utils/currency';
-import { getTodayString, sanitizeDateString } from '../../utils/date';
+import { getTodayString, getCurrentDayOfMonth, sanitizeDateString } from '../../utils/date';
 import { useSubmitOnce } from '../../hooks/useSubmitOnce';
 import { MAX_AMOUNT, MIN_AMOUNT, MIN_DATE_STRING, getMaxDateString, isValidAmount, isValidDate, roundMoney } from '../../utils/validation';
+import { useToast } from '../../context/ToastContext';
 
 interface RecurringPaymentModalProps {
   isOpen: boolean;
@@ -46,12 +47,13 @@ const RecurringPaymentForm: React.FC<RecurringPaymentFormProps> = ({
   onSave,
 }) => {
   const { categories } = useFinance();
+  const { showToast } = useToast();
 
   const [name, setName] = useState<string>(initialPayment?.name || '');
   const [amountStr, setAmountStr] = useState<string>(initialPayment ? initialPayment.amount.toString() : '');
   const [category, setCategory] = useState<string>(initialPayment?.category || categories[0]?.name || 'Bills & Utilities');
   const [frequency, setFrequency] = useState<RecurrenceFrequency>(initialPayment?.frequency || 'monthly');
-  const [dayOfMonth, setDayOfMonth] = useState<number>(initialPayment?.dayOfMonth || new Date().getDate());
+  const [dayOfMonth, setDayOfMonth] = useState<number>(() => initialPayment?.dayOfMonth || getCurrentDayOfMonth());
   const [startDate, setStartDate] = useState<string>(initialPayment?.startDate || getTodayString());
   const [endDate, setEndDate] = useState<string>(initialPayment?.endDate || '');
   const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>(initialPayment?.paymentMethod || 'UPI');
@@ -66,19 +68,19 @@ const RecurringPaymentForm: React.FC<RecurringPaymentFormProps> = ({
     if (!startSubmit()) return;
 
     if (!name.trim()) {
-      alert('Please enter a commitment title (e.g., Netflix, Rent, SIP)');
+      showToast('danger', 'Missing Title', 'Please enter a commitment title (e.g., Netflix, Rent, SIP)');
       reset();
       return;
     }
     if (parsedAmount <= 0 || !isValidAmount(parsedAmount)) {
-      alert(`Please enter a valid amount between ₹${MIN_AMOUNT} and ₹${MAX_AMOUNT.toLocaleString('en-IN')}`);
+      showToast('danger', 'Invalid Amount', `Please enter a valid amount between ₹${MIN_AMOUNT} and ₹${MAX_AMOUNT.toLocaleString('en-IN')}`);
       reset();
       return;
     }
 
     const sanitizedStart = sanitizeDateString(startDate) || getTodayString();
     if (!isValidDate(sanitizedStart)) {
-      alert(`Please enter a valid start date between ${MIN_DATE_STRING} and ${getMaxDateString()}`);
+      showToast('danger', 'Invalid Date', `Please enter a valid start date between ${MIN_DATE_STRING} and ${getMaxDateString()}`);
       reset();
       return;
     }
@@ -87,7 +89,7 @@ const RecurringPaymentForm: React.FC<RecurringPaymentFormProps> = ({
     if (endDate && endDate.trim()) {
       const sanitized = sanitizeDateString(endDate);
       if (!sanitized || !isValidDate(sanitized)) {
-        alert(`Please enter a valid end date between ${MIN_DATE_STRING} and ${getMaxDateString()}`);
+        showToast('danger', 'Invalid End Date', `Please enter a valid end date between ${MIN_DATE_STRING} and ${getMaxDateString()}`);
         reset();
         return;
       }

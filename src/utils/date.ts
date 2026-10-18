@@ -86,6 +86,24 @@ export function getCurrentMonthYear(): { month: number; year: number; monthName:
   return { month, year, monthName, key };
 }
 
+export function getPreviousMonthKey(): string {
+  const now = new Date();
+  const prev = new Date(now.getFullYear(), now.getMonth() - 1, 1);
+  return `${prev.getFullYear()}-${String(prev.getMonth() + 1).padStart(2, '0')}`;
+}
+
+export function getCurrentDayOfMonth(): number {
+  return new Date().getDate();
+}
+
+export function getDaysSinceDate(dateStr: string): number | null {
+  if (!dateStr) return null;
+  const inceptionTime = Date.parse(dateStr);
+  if (Number.isNaN(inceptionTime)) return null;
+  const nowMs = Date.now();
+  return Math.max(1, (nowMs - inceptionTime) / (1000 * 60 * 60 * 24));
+}
+
 export function getMonthKey(date: string | null | undefined): string {
   if (!date || typeof date !== 'string') return '';
   if (/^\d{4}-\d{2}/.test(date)) {

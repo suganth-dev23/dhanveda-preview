@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useCallback, Suspense, lazy } from 'react';
+import { MotionConfig } from 'framer-motion';
 import { FinanceProvider, useFinance } from './context/FinanceContext';
 import { GamificationProvider } from './context/GamificationContext';
 import { ToastProvider } from './components/common/ToastProvider';
@@ -53,6 +54,7 @@ const BadgeShowcase = lazy(() =>
   import('./components/gamification/BadgeShowcase').then(m => ({ default: m.BadgeShowcase }))
 );
 import { BadgePopup } from './components/gamification/BadgePopup';
+import { CommandPaletteModal } from './components/common/CommandPaletteModal';
 
 const MainContent: React.FC = () => {
   const {
@@ -70,11 +72,23 @@ const MainContent: React.FC = () => {
   const [isAddTxOpen, setIsAddTxOpen] = useState(false);
   const [editingTx, setEditingTx] = useState<Transaction | null>(null);
   const [isMoreDrawerOpen, setIsMoreDrawerOpen] = useState(false);
+  const [isCommandPaletteOpen, setIsCommandPaletteOpen] = useState(false);
 
   useEffect(() => {
     const title = VIEW_TITLES[currentView]?.title || 'DhanVeda';
     document.title = `${title} — INR Personal Finance & Wealth Tracker`;
   }, [currentView]);
+
+  useEffect(() => {
+    const handleGlobalKeyDown = (e: KeyboardEvent) => {
+      if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'k') {
+        e.preventDefault();
+        setIsCommandPaletteOpen(prev => !prev);
+      }
+    };
+    window.addEventListener('keydown', handleGlobalKeyDown);
+    return () => window.removeEventListener('keydown', handleGlobalKeyDown);
+  }, []);
 
   const handleOpenAddTx = () => {
     setEditingTx(null);
@@ -98,7 +112,10 @@ const MainContent: React.FC = () => {
       {/* Main Workspace Area */}
       <div className="flex-1 flex flex-col min-w-0 max-w-full pb-20 lg:pb-8 overflow-x-clip">
         {/* Top Navbar */}
-        <Navbar onOpenAddTx={handleOpenAddTx} />
+        <Navbar
+          onOpenAddTx={handleOpenAddTx}
+          onOpenCommandPalette={() => setIsCommandPaletteOpen(true)}
+        />
 
         {/* Dynamic Lazy-Loaded View Router */}
         <main className="flex-1 px-4 sm:px-8 py-6 w-full max-w-full overflow-x-clip">
@@ -279,19 +296,30 @@ const MainContent: React.FC = () => {
         onClose={handleCloseAddTx}
         initialTransaction={editingTx}
       />
+
+      {/* Global Cmd+K Command Palette */}
+      <CommandPaletteModal
+        isOpen={isCommandPaletteOpen}
+        onClose={() => setIsCommandPaletteOpen(false)}
+        onOpenAddTx={handleOpenAddTx}
+        onEditTransaction={handleEditTx}
+      />
     </div>
   );
 };
 
 export default function App() {
   return (
-    <FinanceProvider>
-      <GamificationProvider>
-        <ToastProvider>
-          <MainContent />
-          <BadgePopup />
-        </ToastProvider>
-      </GamificationProvider>
-    </FinanceProvider>
+    <MotionConfig reducedMotion="user">
+      <FinanceProvider>
+        <GamificationProvider>
+          <ToastProvider>
+            <MainContent />
+            <BadgePopup />
+          </ToastProvider>
+        </GamificationProvider>
+      </FinanceProvider>
+    </MotionConfig>
   );
 }
+

@@ -49,18 +49,16 @@ import { getPaymentSchedule, calculateMonthlyEquivalent } from '../utils/recurri
 import { DEFAULT_AI_MODELS, FinancialAggregates } from '../services/aiService';
 import {
  migrateFromLocalStorage,
- getAllFromStore,
+ loadAllStoresFromDB,
  saveAllToStore,
  persistDiff,
  persistDiffSync,
  getCachedDB,
  ArrayStoreName,
- getSingleRecord,
  saveSingleRecord,
  clearAllStores,
  addTombstone,
  removeTombstones,
- UserPreferences,
 } from '../utils/db';
 import { PERSIST_MODE } from '../constants/uiFlags';
 import { googleAuthService } from '../services/googleAuth';
@@ -498,10 +496,10 @@ export const FinanceProvider: React.FC<{ children: React.ReactNode }> = ({ child
  });
  }, []);
 
- // Reload all records from IndexedDB into React state
+ // Reload all records from IndexedDB into React state using a single shared readonly transaction
  const reloadFromDB = useCallback(async () => {
  try {
- const [
+ const {
  dbTx,
  dbCat,
  dbBudgets,
@@ -515,21 +513,7 @@ export const FinanceProvider: React.FC<{ children: React.ReactNode }> = ({ child
  dbPrefs,
  dbRecPay,
  dbRecLogs,
- ] = await Promise.all([
- getAllFromStore<Transaction>('transactions'),
- getAllFromStore<Category>('categories'),
- getAllFromStore<Budget>('budgets'),
- getSingleRecord<EmergencyFund & { id: string }>('emergencyFund'),
- getAllFromStore<Investment>('investments'),
- getAllFromStore<DreamGoal>('dreams'),
- getAllFromStore<Contact>('contacts'),
- getAllFromStore<SettlementRecord>('settlements'),
- getSingleRecord<AISettings & { id: string }>('aiSettings'),
- getAllFromStore<AIHealthReport>('aiReports'),
- getSingleRecord<UserPreferences>('userPreferences', 'general'),
- getAllFromStore<RecurringPayment>('recurringPayments'),
- getAllFromStore<RecurringPaymentLog>('recurringPaymentLogs'),
- ]);
+ } = await loadAllStoresFromDB();
 
     let totalInvalid = 0;
 
@@ -2956,11 +2940,10 @@ export const FinanceProvider: React.FC<{ children: React.ReactNode }> = ({ child
  const upcoming: Array<RecurringPayment & { nextDueDate: string; daysUntilDue: number }> = [];
  const overdue: Array<RecurringPayment & { dueDate: string; daysOverdue: number }> = [];
 
- const now = new Date();
  recurringPayments
  .filter(p => p.isActive)
  .forEach(p => {
- const schedule = getPaymentSchedule(p, recurringPaymentLogs, now);
+ const schedule = getPaymentSchedule(p, recurringPaymentLogs);
  if (schedule.activeDueDate) {
  if (schedule.isOverdue) {
  overdue.push({

@@ -6,14 +6,34 @@ import { VitePWA } from 'vite-plugin-pwa'
 // https://vite.dev/config/
 export default defineConfig({
   server: {
-    host: true, // Exposes Vite dev server to your local Wi-Fi network
-    port: 5173,
-    allowedHosts: true, // Required for Vite 8 tunnels (Cloudflare, Ngrok, localtunnel) and mDNS .local
+    host: '0.0.0.0',
+    port: 3000,
+    allowedHosts: true,
   },
   preview: {
-    host: true,
-    port: 4173,
+    host: '0.0.0.0',
+    port: 3000,
     allowedHosts: true,
+  },
+  optimizeDeps: {
+    include: ['recharts', 'framer-motion', 'lucide-react', 'idb'],
+  },
+  build: {
+    rollupOptions: {
+      output: {
+        manualChunks(id) {
+          if (id.includes('node_modules/recharts') || id.includes('node_modules/d3-')) {
+            return 'vendor-recharts';
+          }
+          if (id.includes('node_modules/framer-motion')) {
+            return 'vendor-motion';
+          }
+          if (id.includes('node_modules/lucide-react')) {
+            return 'vendor-icons';
+          }
+        },
+      },
+    },
   },
   plugins: [
     react(),

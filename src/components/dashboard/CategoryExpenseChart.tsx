@@ -1,6 +1,5 @@
 import React, { useState, useMemo } from 'react';
 import {
-  ResponsiveContainer,
   PieChart,
   Pie,
   Cell,
@@ -8,17 +7,17 @@ import {
 } from 'recharts';
 import { useFinance } from '../../context/FinanceContext';
 import { formatINR, formatCompactINR } from '../../utils/currency';
-import { formatMonth, getCurrentMonthYear } from '../../utils/date';
+import { formatMonth, getCurrentMonthYear, getPreviousMonthKey } from '../../utils/date';
 import { AnimatedNumber } from '../common/AnimatedNumber';
 import { useReducedMotion } from '../../hooks/useReducedMotion';
 
 const PALETTE_FALLBACK = [
   '#10B981', // Emerald
-  '#3B82F6', // Blue
+  '#2563EB', // Royal Cobalt
   '#6366F1', // Indigo
   '#F43F5E', // Rose Crimson
-  '#0D9488', // Teal
   '#06B6D4', // Cyan
+  '#F59E0B', // Suvarna Gold
   '#8B5CF6', // Violet
   '#64748B', // Slate
 ];
@@ -33,9 +32,9 @@ const CategoryTooltip: React.FC<CategoryTooltipProps> = ({ active, payload, tota
   if (active && payload && payload.length) {
     const data = payload[0].payload;
     const pct = totalExpense > 0 ? (data.spent / totalExpense) * 100 : 0;
-    const swatchColor = data.color || '#3B82F6';
+    const swatchColor = data.color || '#2563EB';
     return (
-      <div className="bg-surface/85 backdrop-blur-md p-3.5 rounded-xl shadow-xl border border-line/80 text-xs space-y-2 animate-scale-in min-w-[180px]">
+      <div className="bg-surface/95 backdrop-blur-md p-3.5 rounded-xl shadow-xl border border-line text-xs space-y-2 animate-scale-in min-w-[180px] pointer-events-none select-none">
         <div className="flex items-center justify-between gap-3 border-b border-line/60 pb-1.5">
           <div className="flex items-center gap-2 truncate">
             <span
@@ -48,21 +47,21 @@ const CategoryTooltip: React.FC<CategoryTooltipProps> = ({ active, payload, tota
             />
             <span className="font-bold text-ink-1 truncate">{data.category}</span>
           </div>
-          <span className="text-[11px] font-bold font-numeric px-1.5 py-0.5 rounded bg-sunken text-ink-2 shrink-0">
+          <span className="text-[11px] font-bold font-numeric tabular-nums px-1.5 py-0.5 rounded bg-sunken text-ink-2 shrink-0">
             {pct.toFixed(1)}%
           </span>
         </div>
         <div className="space-y-1 pt-0.5">
           <div className="flex items-baseline justify-between gap-3">
             <span className="text-ink-3 text-[11px]">Expense</span>
-            <span className="font-bold font-numeric text-ink-1" data-money="true">
+            <span className="font-bold font-numeric tabular-nums text-ink-1" data-money="true">
               {formatINR(data.spent)}
             </span>
           </div>
           {data.budget > 0 && (
             <div className="flex items-baseline justify-between gap-3 text-ink-3 text-[11px] pt-1 border-t border-line/40">
               <span>Budget ({data.percentUsed.toFixed(0)}%)</span>
-              <span className="font-numeric" data-money="true">
+              <span className="font-numeric tabular-nums" data-money="true">
                 {formatINR(data.budget)}
               </span>
             </div>
@@ -85,11 +84,7 @@ export const CategoryExpenseChart: React.FC = () => {
   const reducedMotion = useReducedMotion();
 
   const currentMonthKey = useMemo(() => getCurrentMonthYear().key, []);
-  const lastMonthKey = useMemo(() => {
-    const now = new Date();
-    const lastMonthDate = new Date(now.getFullYear(), now.getMonth() - 1, 1);
-    return `${lastMonthDate.getFullYear()}-${String(lastMonthDate.getMonth() + 1).padStart(2, '0')}`;
-  }, []);
+  const lastMonthKey = useMemo(() => getPreviousMonthKey(), []);
 
   const availableMonths = useMemo(() => {
     const monthSet = new Set<string>();
@@ -106,6 +101,7 @@ export const CategoryExpenseChart: React.FC = () => {
   }, [currentMonthKey, lastMonthKey, transactions]);
 
   const [selectedMonthKey, setSelectedMonthKey] = useState<string>(currentMonthKey);
+  const [hoveredCategoryName, setHoveredCategoryName] = useState<string | null>(null);
 
   // Calculate category spending and total for selectedMonthKey
   const { activeMonthExpense, expenseCategories } = useMemo(() => {
@@ -168,6 +164,14 @@ export const CategoryExpenseChart: React.FC = () => {
     categories,
   ]);
 
+  const hoveredItem = useMemo(
+    () =>
+      hoveredCategoryName
+        ? expenseCategories.find(c => c.category === hoveredCategoryName) || null
+        : null,
+    [expenseCategories, hoveredCategoryName]
+  );
+
   const otherCategories = expenseCategories.slice(5);
   const otherSpent = otherCategories.reduce(
     (sum, c) => sum + (Number.isFinite(c.spent) ? c.spent : 0),
@@ -197,7 +201,7 @@ export const CategoryExpenseChart: React.FC = () => {
     : formatMonth(selectedMonthKey);
 
   return (
-    <div className="bg-surface rounded-2xl p-4 sm:p-6 shadow-xs border border-line flex flex-col h-full">
+    <div className="bg-surface rounded-2xl p-5 sm:p-6 shadow-xs border border-line flex flex-col h-full">
       {/* Header with Title and Month Selectors */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-3">
         <div>
@@ -217,7 +221,7 @@ export const CategoryExpenseChart: React.FC = () => {
             )}
           </div>
           <p className="text-xs text-ink-3 mt-0.5">
-            {monthLabel} debits breakdown • {formatMonth(selectedMonthKey)}
+            {monthLabel} debits breakdown · {formatMonth(selectedMonthKey)}
           </p>
         </div>
 
@@ -227,7 +231,7 @@ export const CategoryExpenseChart: React.FC = () => {
             <button
               type="button"
               onClick={() => setSelectedMonthKey(currentMonthKey)}
-              className={`press px-2.5 py-1 rounded-lg font-semibold transition-all ${
+              className={`press px-2.5 py-1 rounded-lg font-semibold transition-all cursor-pointer ${
                 isCurrentMonth
                   ? 'bg-surface text-primary shadow-xs font-bold'
                   : 'text-ink-3 hover:text-ink-1'
@@ -238,7 +242,7 @@ export const CategoryExpenseChart: React.FC = () => {
             <button
               type="button"
               onClick={() => setSelectedMonthKey(lastMonthKey)}
-              className={`press px-2.5 py-1 rounded-lg font-semibold transition-all ${
+              className={`press px-2.5 py-1 rounded-lg font-semibold transition-all cursor-pointer ${
                 isLastMonth
                   ? 'bg-surface text-primary shadow-xs font-bold'
                   : 'text-ink-3 hover:text-ink-1'
@@ -269,7 +273,10 @@ export const CategoryExpenseChart: React.FC = () => {
             </div>
           )}
 
-          <span data-money="true" className="font-numeric text-xs font-bold text-ink-1 bg-sunken px-2.5 py-1 rounded-xl border border-line shrink-0">
+          <span
+            data-money="true"
+            className="font-numeric tabular-nums text-xs font-bold text-ink-1 bg-sunken px-2.5 py-1 rounded-xl border border-line shrink-0"
+          >
             {formatINR(activeMonthExpense)}
           </span>
         </div>
@@ -302,7 +309,7 @@ export const CategoryExpenseChart: React.FC = () => {
             <button
               type="button"
               onClick={() => setSelectedMonthKey(currentMonthKey)}
-              className="mt-2 text-xs font-semibold text-primary hover:underline"
+              className="mt-2 text-xs font-semibold text-primary hover:underline cursor-pointer"
             >
               Return to This Month
             </button>
@@ -310,46 +317,75 @@ export const CategoryExpenseChart: React.FC = () => {
         </div>
       ) : (
         <div className="flex flex-col sm:flex-row items-center gap-4 flex-1">
-          {/* Donut Chart with Perfectly Centered Total */}
+          {/* Donut Chart with Interactive Center Readout */}
           <div className="w-full sm:w-1/2 flex items-center justify-center">
             <div className="relative w-[200px] h-[200px] flex items-center justify-center shrink-0">
-              <ResponsiveContainer width={200} height={200}>
-                <PieChart margin={{ top: 0, right: 0, bottom: 0, left: 0 }}>
-                  <Pie
-                    data={expenseCategories}
-                    dataKey="spent"
-                    nameKey="category"
-                    cx="50%"
-                    cy="50%"
-                    innerRadius={55}
-                    outerRadius={80}
-                    paddingAngle={expenseCategories.length > 1 ? 3 : 0}
-                    stroke="none"
-                    isAnimationActive={false}
-                  >
-                    {expenseCategories.map((entry, index) => (
+              <PieChart
+                width={200}
+                height={200}
+                margin={{ top: 0, right: 0, bottom: 0, left: 0 }}
+                onMouseLeave={() => setHoveredCategoryName(null)}
+              >
+                <Pie
+                  data={expenseCategories}
+                  dataKey="spent"
+                  nameKey="category"
+                  cx="50%"
+                  cy="50%"
+                  innerRadius={56}
+                  outerRadius={82}
+                  paddingAngle={expenseCategories.length > 1 ? 3 : 0}
+                  stroke="none"
+                  isAnimationActive={false}
+                  onMouseEnter={(_, idx) => {
+                    const entry = expenseCategories[idx];
+                    if (entry) setHoveredCategoryName(entry.category);
+                  }}
+                >
+                  {expenseCategories.map((entry, index) => {
+                    const fillColor =
+                      entry.color || PALETTE_FALLBACK[index % PALETTE_FALLBACK.length];
+                    const isDimmed =
+                      hoveredCategoryName !== null &&
+                      hoveredCategoryName !== entry.category;
+                    return (
                       <Cell
                         key={`cell-${selectedMonthKey}-${entry.category}`}
-                        fill={entry.color || PALETTE_FALLBACK[index % PALETTE_FALLBACK.length]}
+                        fill={fillColor}
+                        fillOpacity={isDimmed ? 0.38 : 1}
                       />
-                    ))}
-                  </Pie>
-                  <Tooltip content={<CategoryTooltip totalExpense={activeMonthExpense} />} />
-                </PieChart>
-              </ResponsiveContainer>
+                    );
+                  })}
+                </Pie>
+                <Tooltip
+                  content={<CategoryTooltip totalExpense={activeMonthExpense} />}
+                  isAnimationActive={false}
+                />
+              </PieChart>
 
-              {/* Center total display: perfectly centered inside the 200x200 square */}
-              <div className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none text-center select-none">
-                <span className="text-[10px] uppercase tracking-wider font-semibold text-ink-3">Total</span>
-                <span className="font-numeric text-sm sm:text-base font-bold text-ink-1 tracking-tight">
-                  <AnimatedNumber
-                    key={selectedMonthKey}
-                    value={activeMonthExpense}
-                    formatter={formatCompactINR}
-                    duration={400}
-                    animateOnMount={true}
-                  />
+              {/* Center total or hovered category display */}
+              <div className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none text-center select-none px-4">
+                <span className="text-[10px] uppercase tracking-wider font-semibold text-ink-3 truncate max-w-[96px]">
+                  {hoveredItem ? hoveredItem.category : 'Total'}
                 </span>
+                <span className="font-numeric tabular-nums text-sm sm:text-base font-bold text-ink-1 tracking-tight">
+                  {hoveredItem ? (
+                    formatCompactINR(hoveredItem.spent)
+                  ) : (
+                    <AnimatedNumber
+                      key={selectedMonthKey}
+                      value={activeMonthExpense}
+                      formatter={formatCompactINR}
+                      duration={400}
+                      animateOnMount={true}
+                    />
+                  )}
+                </span>
+                {hoveredItem && activeMonthExpense > 0 && (
+                  <span className="text-[10px] font-bold font-numeric tabular-nums text-primary">
+                    {((hoveredItem.spent / activeMonthExpense) * 100).toFixed(0)}% share
+                  </span>
+                )}
               </div>
             </div>
           </div>
@@ -359,20 +395,34 @@ export const CategoryExpenseChart: React.FC = () => {
             {expenseCategories.slice(0, 5).map((cat, idx) => {
               const pct = activeMonthExpense > 0 ? (cat.spent / activeMonthExpense) * 100 : 0;
               const swatch = cat.color || PALETTE_FALLBACK[idx % PALETTE_FALLBACK.length];
+              const isHighlighted = hoveredCategoryName === cat.category;
               return (
                 <div
                   key={cat.category}
-                  className="flex items-center justify-between text-xs transition-all duration-300 hover:translate-x-0.5"
-                  style={reducedMotion ? undefined : { animation: `fade-in 0.3s ease-out ${idx * 0.05}s both` }}
+                  onMouseEnter={() => setHoveredCategoryName(cat.category)}
+                  onMouseLeave={() => setHoveredCategoryName(null)}
+                  className={`flex items-center justify-between text-xs px-2 py-1 rounded-lg transition-all duration-200 cursor-pointer ${
+                    isHighlighted
+                      ? 'bg-sunken font-semibold translate-x-0.5'
+                      : 'hover:bg-sunken/60 hover:translate-x-0.5'
+                  }`}
+                  style={
+                    reducedMotion
+                      ? undefined
+                      : { animation: `fade-in 0.3s ease-out ${idx * 0.05}s both` }
+                  }
                 >
                   <div className="flex items-center gap-2 truncate">
-                    <span className="w-2.5 h-2.5 rounded-full flex-shrink-0" style={{ backgroundColor: swatch }} />
+                    <span
+                      className="w-2.5 h-2.5 rounded-full flex-shrink-0"
+                      style={{ backgroundColor: swatch }}
+                    />
                     <span className="font-medium text-ink-2 truncate">
                       {cat.category}
                     </span>
                   </div>
-                  <div className="flex items-center gap-2 flex-shrink-0 font-numeric">
-                    <span className="font-semibold text-ink-1">
+                  <div className="flex items-center gap-2 flex-shrink-0 font-numeric tabular-nums">
+                    <span className="font-semibold text-ink-1" data-money="true">
                       {formatINR(cat.spent)}
                     </span>
                     <span className="text-xs text-ink-3 w-9 text-right font-medium">
@@ -384,15 +434,15 @@ export const CategoryExpenseChart: React.FC = () => {
             })}
 
             {otherCategories.length > 0 && (
-              <div className="flex items-center justify-between text-xs pt-1 border-t border-line">
+              <div className="flex items-center justify-between text-xs pt-1 px-2 border-t border-line">
                 <div className="flex items-center gap-2 truncate">
                   <span className="w-2.5 h-2.5 rounded-full flex-shrink-0 bg-slate-400 dark:bg-slate-500" />
                   <span className="font-medium text-ink-3 truncate">
                     Other ({otherCategories.length})
                   </span>
                 </div>
-                <div className="flex items-center gap-2 flex-shrink-0 font-numeric">
-                  <span className="font-semibold text-ink-2">
+                <div className="flex items-center gap-2 flex-shrink-0 font-numeric tabular-nums">
+                  <span className="font-semibold text-ink-2" data-money="true">
                     {formatINR(otherSpent)}
                   </span>
                   <span className="text-xs text-ink-3 w-9 text-right font-medium">

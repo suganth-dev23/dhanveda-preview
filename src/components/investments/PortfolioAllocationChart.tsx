@@ -1,5 +1,5 @@
 import React, { useMemo } from 'react';
-import { ResponsiveContainer, PieChart, Pie, Cell, Tooltip } from 'recharts';
+import { PieChart, Pie, Cell, Tooltip } from 'recharts';
 import { Investment } from '../../types/finance';
 import { formatINR, formatCompactINR } from '../../utils/currency';
 import { INDIAN_WEALTH_PALETTE } from '../../constants/theme';
@@ -135,27 +135,25 @@ export const PortfolioAllocationChart: React.FC<PortfolioAllocationChartProps> =
         <div className="flex flex-col sm:flex-row items-center gap-6 mt-4">
           <div className="w-full sm:w-1/2 flex items-center justify-center">
             <div className="relative w-[210px] h-[210px] flex items-center justify-center shrink-0">
-              <ResponsiveContainer width={210} height={210}>
-                <PieChart>
-                  <Pie
-                    data={allocationData}
-                    dataKey={useInvestedFallback ? "invested" : "value"}
-                    nameKey="name"
-                    cx="50%"
-                    cy="50%"
-                    innerRadius={60}
-                    outerRadius={85}
-                    paddingAngle={allocationData.length > 1 ? 3 : 0}
-                    stroke="none"
-                    isAnimationActive={false}
-                  >
-                    {allocationData.map(entry => (
-                      <Cell key={`cell-alloc-${entry.name}`} fill={entry.color} />
-                    ))}
-                  </Pie>
-                  <Tooltip content={<PortfolioTooltip />} />
-                </PieChart>
-              </ResponsiveContainer>
+              <PieChart width={210} height={210}>
+                <Pie
+                  data={allocationData}
+                  dataKey={useInvestedFallback ? "invested" : "value"}
+                  nameKey="name"
+                  cx="50%"
+                  cy="50%"
+                  innerRadius={60}
+                  outerRadius={85}
+                  paddingAngle={allocationData.length > 1 ? 3 : 0}
+                  stroke="none"
+                  isAnimationActive={false}
+                >
+                  {allocationData.map(entry => (
+                    <Cell key={`cell-alloc-${entry.name}`} fill={entry.color} />
+                  ))}
+                </Pie>
+                <Tooltip content={<PortfolioTooltip />} isAnimationActive={false} />
+              </PieChart>
 
               {/* Center total display: perfectly centered inside the 210x210 square */}
               <div className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none text-center select-none">

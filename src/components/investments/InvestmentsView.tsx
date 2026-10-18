@@ -11,10 +11,12 @@ import { AnimatedNumber } from '../common/AnimatedNumber';
 import { EmptyState } from '../common/EmptyState';
 import { InvestmentModal } from './InvestmentModal';
 import { PortfolioAllocationChart } from './PortfolioAllocationChart';
+import { WealthCompoundingSimulator } from './WealthCompoundingSimulator';
 import { INDIAN_WEALTH_PALETTE } from '../../constants/theme';
 import { useStaggerChildren } from '../../hooks/useStaggerChildren';
 import { Button, Card, Money, Stat } from '../ui';
 import { calculateCAGR, getInvestmentInceptionDate } from '../../utils/investmentCalculations';
+import { getDaysSinceDate } from '../../utils/date';
 
 export const InvestmentsView: React.FC = () => {
  const { containerRef: assetGridRef, getChildStyle } = useStaggerChildren(50);
@@ -191,9 +193,9 @@ export const InvestmentsView: React.FC = () => {
  <span>{investments.length} Total Holdings</span>
  </div>
 
- {/* Segmented bar */}
+ {/* Segmented bar (GPU-composited scaleX, zero width animation) */}
  <div
- className="h-3.5 w-full rounded-full bg-sunken overflow-hidden flex gap-1 p-0.5 border border-line"
+ className="h-3.5 w-full rounded-full bg-sunken overflow-hidden flex gap-1 p-0.5 border border-line contain-paint"
  role="progressbar"
  aria-label="Portfolio asset allocation breakdown"
  aria-valuenow={100}
@@ -203,11 +205,19 @@ export const InvestmentsView: React.FC = () => {
  {assetSegments.map(seg => (
  <div
  key={seg.type}
- style={{ width: isMounted ? `${Math.max(0, seg.percentage)}%` : '0%', backgroundColor: seg.color }}
- className="h-full rounded-full transition-[width] duration-[450ms] ease-[cubic-bezier(0.16,1,0.3,1)] relative overflow-hidden shadow-xs shrink-0"
+ style={{ flexGrow: Math.max(0.01, seg.percentage), flexBasis: 0 }}
+ className="h-full rounded-full overflow-hidden"
  title={`${seg.type}: ${seg.percentage.toFixed(1)}%`}
  >
+ <div
+ style={{
+ transform: `scaleX(${isMounted ? 1 : 0})`,
+ backgroundColor: seg.color,
+ }}
+ className="h-full w-full rounded-full origin-left will-change-transform transition-transform duration-300 ease-out relative overflow-hidden shadow-xs"
+ >
  <div className="absolute inset-0 bg-gradient-to-b from-white/30 via-white/10 to-transparent pointer-events-none rounded-full" />
+ </div>
  </div>
  ))}
  </div>
@@ -218,17 +228,23 @@ export const InvestmentsView: React.FC = () => {
  <button
  key={seg.type}
  onClick={() => setFilterType(filterType === seg.type ? 'all' : seg.type)}
- className="flex items-center gap-1.5 hover:opacity-80 transition-opacity"
+ className="flex items-center gap-1.5 hover:opacity-80 transition-opacity cursor-pointer"
  >
  <span className="w-2.5 h-2.5 rounded-full" style={{ backgroundColor: seg.color }} />
  <span className="font-medium text-ink-2">{seg.type}</span>
- <span className="font-numeric text-ink-3 text-xs">{seg.percentage.toFixed(1)}%</span>
+ <span className="font-numeric tabular-nums text-ink-3 text-xs">{seg.percentage.toFixed(1)}%</span>
  </button>
  ))}
  </div>
  </div>
  )}
  </Card>
+
+ {/* Interactive 25-Year SIP & Multi-Asset Wealth Compounding Scrubber */}
+ <WealthCompoundingSimulator
+ portfolioMonthlySIP={totalMonthlySIP}
+ portfolioCurrentValue={safeTotalValue}
+ />
 
  {investments.length === 0 ? (
  <EmptyState
@@ -383,12 +399,9 @@ export const InvestmentsView: React.FC = () => {
  let cagrPct: number | null = null;
  const inceptionDate = getInvestmentInceptionDate(inv);
  if (inceptionDate && safeInv > 0 && safeVal > 0) {
- const inceptionTime = new Date(inceptionDate).getTime();
- if (!isNaN(inceptionTime)) {
- const daysHeld = Math.max(1, (new Date().getTime() - inceptionTime) / (1000 * 60 * 60 * 24));
- if (daysHeld >= 90) {
+ const daysHeld = getDaysSinceDate(inceptionDate);
+ if (daysHeld !== null && daysHeld >= 90) {
  cagrPct = calculateCAGR(safeInv, safeVal, daysHeld / 365.25);
- }
  }
  }
 

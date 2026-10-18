@@ -22,6 +22,7 @@ import { IconRenderer } from '../common/IconRenderer';
 import { EmptyState } from '../common/EmptyState';
 import { RecurringPaymentModal } from './RecurringPaymentModal';
 import { MarkPaidModal } from './MarkPaidModal';
+import { CashflowCalendarHeatmap } from '../dashboard/CashflowCalendarHeatmap';
 
 type FilterTab = 'all' | 'active' | 'paused';
 
@@ -210,6 +211,9 @@ export const RecurringPaymentsView: React.FC = () => {
  </div>
  </div>
  </div>
+
+ {/* Monthly Bill & Cashflow Heatmap */}
+ <CashflowCalendarHeatmap />
 
  {/* Overdue Alerts Section (if any overdue commitments) */}
  {overdueRecurringPayments.length > 0 && (

@@ -1,67 +1,119 @@
-import React, { useState, useMemo } from 'react';
-import { Plus, Edit3, Trash2, AlertCircle, CheckCircle, PieChart, ShieldAlert } from 'lucide-react';
+import React, { useState, useCallback } from 'react';
+import { Plus, PieChart } from 'lucide-react';
+import { motion } from 'framer-motion';
 import { useFinance } from '../../context/FinanceContext';
-import { Budget } from '../../types/finance';
-import { AnimatedNumber } from '../common/AnimatedNumber';
-import { EmptyState } from '../common/EmptyState';
-import { IconRenderer } from '../common/IconRenderer';
+import { Budget, BudgetCategoryItem } from '../../types/finance';
 import { BudgetModal } from './BudgetModal';
-import { useStaggerChildren } from '../../hooks/useStaggerChildren';
-import { Button, Card, Money, Stat, Progress } from '../ui';
+import { Button, Card, Stat } from '../ui';
+import { AnimatedCurrency } from '../ui/AnimatedCurrency';
+import { useBudgetCategoriesSelector } from '../../hooks/useFinanceData';
+import { BudgetByCategory } from '../budget/BudgetByCategory';
+import { RebalanceBudgetModal } from '../budget/RebalanceBudgetModal';
+import { CashFlowChart } from '../dashboard/CashFlowChart';
+import { SPRING_FLUID, SPRING_BOUNCY } from '../../lib/motion-tokens';
+import { useToast } from '../../context/ToastContext';
+
+function getMonthPacingBaseline(): { currentDay: number; totalDays: number; daysPassed: number } {
+  const now = new Date();
+  const currentDay = now.getDate();
+  const totalDays = new Date(now.getFullYear(), now.getMonth() + 1, 0).getDate();
+  return {
+    currentDay,
+    totalDays,
+    daysPassed: Math.max(1, currentDay),
+  };
+}
 
 export const BudgetsView: React.FC = () => {
-  const { containerRef: budgetGridRef, getChildStyle } = useStaggerChildren(60);
   const {
     budgets,
-    categories,
-    categorySpendingThisMonth,
     deleteBudget,
+    setBudgetForCategory,
   } = useFinance();
+  const { showToast } = useToast();
 
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [selectedBudget, setSelectedBudget] = useState<Budget | null>(null);
+  const [rebalanceTarget, setRebalanceTarget] = useState<BudgetCategoryItem | null>(null);
+  const [highlightedCategory, setHighlightedCategory] = useState<string | null>(null);
 
-  const totalBudgeted = useMemo(() => {
-    return budgets.reduce((acc, b) => acc + b.monthlyLimit, 0);
-  }, [budgets]);
+  const [{ currentDay, totalDays, daysPassed }] = useState(getMonthPacingBaseline);
 
-  const totalSpentInBudgeted = useMemo(() => {
-    const budgetNames = new Set(budgets.map(b => b.category.toLowerCase()));
-    return categorySpendingThisMonth
-      .filter(c => budgetNames.has(c.category.toLowerCase()))
-      .reduce((acc, c) => acc + c.spent, 0);
-  }, [budgets, categorySpendingThisMonth]);
+  const { allItems, summary } = useBudgetCategoriesSelector('all', 'utilization');
 
-  const remainingBudget = totalBudgeted - totalSpentInBudgeted;
-  const overallPercent = totalBudgeted > 0 ? Math.round((totalSpentInBudgeted / totalBudgeted) * 100) : 0;
-  const isOverTotal = remainingBudget < 0;
+  const {
+    totalAllocated,
+    totalSpent,
+    netVariance,
+    aggregateMetrics,
+  } = summary;
 
-  // Spending velocity and pacing calculations with strict Day 1 division-by-zero protection
-  const now = useMemo(() => new Date(), []);
-  const currentDay = now.getDate();
-  const totalDays = useMemo(() => new Date(now.getFullYear(), now.getMonth() + 1, 0).getDate(), [now]);
-  // Strictly guard daysPassed so it never equals 0 (e.g. Day 1 of month, or time boundary edge cases)
-  const daysPassed = Math.max(1, currentDay);
-  const projectedTotalSpend = Math.round((totalSpentInBudgeted / daysPassed) * totalDays);
-  const isPacingFast = !isOverTotal && totalBudgeted > 0 && projectedTotalSpend > totalBudgeted && daysPassed >= 3;
+  const isOverTotal = netVariance < 0;
+  const projectedTotalSpend = Math.round((totalSpent / daysPassed) * totalDays);
+  const isPacingFast =
+    !isOverTotal &&
+    totalAllocated > 0 &&
+    projectedTotalSpend > totalAllocated &&
+    daysPassed >= 3;
 
-  const categoryMap = useMemo(() => {
-    return new Map(categories.map(c => [c.name.toLowerCase(), c]));
-  }, [categories]);
+  const handleEditItem = useCallback(
+    (item: BudgetCategoryItem) => {
+      const found = budgets.find(
+        b => b.id === item.id || b.category.toLowerCase() === item.name.toLowerCase()
+      );
+      if (found) {
+        setSelectedBudget(found);
+        setIsModalOpen(true);
+      }
+    },
+    [budgets]
+  );
 
-  const spendingMap = useMemo(() => {
-    return new Map(categorySpendingThisMonth.map(c => [c.category.toLowerCase(), c.spent]));
-  }, [categorySpendingThisMonth]);
+  const handleDeleteItem = useCallback(
+    (item: BudgetCategoryItem) => {
+      deleteBudget(item.id);
+      if (highlightedCategory === item.name) {
+        setHighlightedCategory(null);
+      }
+      showToast('info', `Removed budget limit for ${item.name}`);
+    },
+    [deleteBudget, highlightedCategory, showToast]
+  );
 
-  const handleEdit = (budget: Budget) => {
-    setSelectedBudget(budget);
-    setIsModalOpen(true);
-  };
-
-  const handleOpenAdd = () => {
+  const handleOpenAdd = useCallback(() => {
     setSelectedBudget(null);
     setIsModalOpen(true);
-  };
+  }, []);
+
+  const handleOpenRebalance = useCallback((item: BudgetCategoryItem) => {
+    setRebalanceTarget(item);
+  }, []);
+
+  const handleApplyRebalance = useCallback(
+    (
+      targetCategoryName: string,
+      newTargetLimit: number,
+      donorCategoryName?: string,
+      newDonorLimit?: number
+    ) => {
+      setBudgetForCategory(targetCategoryName, newTargetLimit);
+      if (donorCategoryName && typeof newDonorLimit === 'number') {
+        setBudgetForCategory(donorCategoryName, newDonorLimit);
+        showToast(
+          'success',
+          'Budget rebalanced from surplus',
+          `Updated ${targetCategoryName} and ${donorCategoryName} limits.`
+        );
+      } else {
+        showToast(
+          'success',
+          'Budget ceiling updated',
+          `Raised ${targetCategoryName} monthly limit.`
+        );
+      }
+    },
+    [setBudgetForCategory, showToast]
+  );
 
   return (
     <div className="space-y-6 max-w-7xl mx-auto pb-16">
@@ -74,27 +126,30 @@ export const BudgetsView: React.FC = () => {
               <span className="flex h-6 w-6 items-center justify-center rounded-xl bg-primary-tint text-primary">
                 <PieChart className="h-4 w-4" />
               </span>
-              <span className="text-xs font-bold uppercase tracking-wider text-ink-3">
-                MONTHLY BUDGET STATUS
+              <span className="text-xs font-semibold text-ink-3">
+                Monthly Budget Status
               </span>
             </div>
             <p className="text-xs text-ink-3 mb-1">
-              Remaining Spend Allocation
+              {isOverTotal ? 'Total Overrun Deficit' : 'Remaining Spend Allocation'}
             </p>
             <div className="flex items-baseline gap-3">
-              <h2 className="text-3xl sm:text-4xl font-black font-numeric tracking-tight text-ink-1">
-                <AnimatedNumber value={Math.abs(remainingBudget)} animateOnMount={true} />
+              <h2 className="text-3xl sm:text-4xl font-black font-numeric tabular-nums tracking-tight text-ink-1">
+                <AnimatedCurrency value={Math.abs(netVariance)} />
               </h2>
               <span
-                className={`text-sm font-semibold ${
-                  isOverTotal ? 'text-negative' : 'text-positive'
-                }`}
+                className="text-sm font-semibold"
+                style={{ color: aggregateMetrics.statusColor }}
               >
                 {isOverTotal ? 'over budget' : 'remaining'}
               </span>
             </div>
-            <p className="mt-2 text-xs text-ink-3">
-              <span className="font-numeric font-semibold">{overallPercent}%</span> used of <Money value={totalBudgeted} size="xs" /> monthly limit • <span className="font-numeric font-semibold">{budgets.length}</span> active category limits
+            <p className="mt-2 text-xs text-ink-3 font-numeric tabular-nums">
+              <span className="font-semibold text-ink-1">
+                {aggregateMetrics.displayPercent}%
+              </span>{' '}
+              utilized of <AnimatedCurrency value={totalAllocated} className="font-semibold text-ink-2" /> monthly limit ·{' '}
+              <span className="font-semibold text-ink-1">{allItems.length}</span> active category limits
             </p>
           </div>
 
@@ -108,19 +163,65 @@ export const BudgetsView: React.FC = () => {
           </div>
         </div>
 
-        {/* Dynamic Progress Bar */}
+        {/* GPU-Composited Master Progress Bar with Split-Track Overrun Support */}
         <div className="mt-6 pt-5 border-t border-line">
-          <div className="flex justify-between items-center text-xs text-ink-3 mb-2 font-medium">
-            <span className="font-numeric">Spent: <Money value={totalSpentInBudgeted} size="xs" /></span>
-            <span className="font-numeric">Limit: <Money value={totalBudgeted} size="xs" /></span>
+          <div className="flex justify-between items-center text-xs text-ink-3 mb-2 font-medium font-numeric tabular-nums">
+            <span>
+              Spent: <AnimatedCurrency value={totalSpent} className="font-bold text-ink-1" />
+            </span>
+            <span>
+              Limit: <AnimatedCurrency value={totalAllocated} className="font-bold text-ink-1" />
+            </span>
           </div>
-          <Progress
-            value={totalSpentInBudgeted}
-            max={totalBudgeted}
-            tone="auto"
-            size="md"
-            showMilestones={true}
-          />
+          <div
+            role="progressbar"
+            aria-valuenow={aggregateMetrics.displayPercent}
+            aria-valuemin={0}
+            aria-valuemax={100}
+            aria-label="Overall monthly budget utilization"
+            className="relative h-3 w-full overflow-hidden rounded-full bg-sunken contain-paint"
+          >
+            {!aggregateMetrics.isOverBudget ? (
+              <motion.div
+                className="h-full w-full rounded-full will-change-transform"
+                style={{ originX: 0, backgroundColor: aggregateMetrics.statusColor }}
+                initial={{ scaleX: 0 }}
+                animate={{ scaleX: aggregateMetrics.clampedRatio }}
+                transition={SPRING_FLUID}
+              />
+            ) : (
+              <div className="flex h-full w-full items-center">
+                <div
+                  className="h-full overflow-hidden"
+                  style={{ flexGrow: aggregateMetrics.baseSplitRatio, flexBasis: 0 }}
+                >
+                  <motion.div
+                    className="h-full w-full bg-[#1A73E8] will-change-transform"
+                    style={{ originX: 0 }}
+                    initial={{ scaleX: 0 }}
+                    animate={{ scaleX: 1 }}
+                    transition={SPRING_FLUID}
+                  />
+                </div>
+                <div
+                  className="z-10 h-full w-0.5 shrink-0 bg-surface"
+                  title="Original 100% Budget Limit"
+                />
+                <div
+                  className="h-full overflow-hidden"
+                  style={{ flexGrow: aggregateMetrics.overrunSplitRatio, flexBasis: 0 }}
+                >
+                  <motion.div
+                    className="h-full w-full bg-[#D93025] will-change-transform"
+                    style={{ originX: 0 }}
+                    initial={{ scaleX: 0 }}
+                    animate={{ scaleX: 1 }}
+                    transition={SPRING_BOUNCY}
+                  />
+                </div>
+              </div>
+            )}
+          </div>
         </div>
 
         {/* 4-column summary strip */}
@@ -128,46 +229,41 @@ export const BudgetsView: React.FC = () => {
           <Card variant="sunken" padding="sm" className="rounded-xl sm:rounded-2xl">
             <Stat
               label="Total Allowed"
-              value={<Money value={totalBudgeted} compact size="lg" />}
+              value={<AnimatedCurrency value={totalAllocated} compact className="text-lg sm:text-xl font-extrabold text-ink-1" />}
             />
           </Card>
           <Card variant="sunken" padding="sm" className="rounded-xl sm:rounded-2xl">
             <Stat
               label="Actual Spent"
-              value={<Money value={totalSpentInBudgeted} compact size="lg" />}
+              value={<AnimatedCurrency value={totalSpent} compact className="text-lg sm:text-xl font-extrabold text-ink-1" />}
             />
           </Card>
           <Card variant="sunken" padding="sm" className="rounded-xl sm:rounded-2xl">
             <Stat
               label="Active Caps"
-              value={<span>{budgets.length}</span>}
+              value={<span className="font-numeric tabular-nums">{allItems.length}</span>}
             />
           </Card>
           <Card variant="sunken" padding="sm" className="rounded-xl sm:rounded-2xl">
             <Stat
               label="Velocity Status"
               value={
-                <span className={`text-sm sm:text-lg font-bold font-numeric ${
-                  isOverTotal
-                    ? 'text-negative'
-                    : isPacingFast
-                    ? 'text-ink-1'
-                    : overallPercent >= 85
-                    ? 'text-ink-1'
-                    : 'text-positive'
-                }`}>
+                <span
+                  className="text-sm sm:text-lg font-bold font-numeric tabular-nums"
+                  style={{ color: aggregateMetrics.statusColor }}
+                >
                   {isOverTotal
                     ? 'Over Budget'
                     : isPacingFast
                     ? 'Pacing Over'
-                    : overallPercent >= 85
+                    : aggregateMetrics.isNearLimit
                     ? 'Near Ceiling'
                     : 'Safe Velocity'}
                 </span>
               }
               sub={
-                <span className="text-xs text-ink-3">
-                  Day {currentDay}/{totalDays} • Proj: <Money value={projectedTotalSpend} size="xs" />
+                <span className="text-xs text-ink-3 font-numeric tabular-nums">
+                  Day {currentDay}/{totalDays} · Proj: <AnimatedCurrency value={projectedTotalSpend} compact />
                 </span>
               }
             />
@@ -175,163 +271,51 @@ export const BudgetsView: React.FC = () => {
         </div>
       </Card>
 
+      {/* Cross-Highlighted Cashflow Trajectory when a category is selected */}
+      {highlightedCategory && (
+        <CashFlowChart
+          selectedCategory={highlightedCategory}
+          onClearCategory={() => setHighlightedCategory(null)}
+        />
+      )}
+
       {/* Section Header */}
       <div className="flex items-center justify-between">
         <div>
           <h3 className="text-lg font-bold text-ink-1 tracking-tight">
-            Category Spending Limits
+            Budget by Category
           </h3>
           <p className="text-xs text-ink-3">
-            Active monthly expenditure caps, pacing status, and overrun protection
+            GPU-accelerated category limits, split-track overrun indicators, and one-click surplus rebalancing
           </p>
         </div>
-        <span className="text-xs font-semibold text-ink-3">
-          {budgets.length} categories
-        </span>
       </div>
 
-      {/* Categories Budgets Grid */}
-      {budgets.length === 0 ? (
-        <EmptyState
-          icon={PieChart}
-          title="No category budgets defined"
-          description="Set spending caps for categories like Dining, Groceries, Shopping or Fuel to stay in total control."
-          actionLabel="Create Your First Budget"
-          onAction={handleOpenAdd}
-        />
-      ) : (
-        <div ref={budgetGridRef} className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
-          {budgets.map((b, idx) => {
-            const catInfo = categoryMap.get(b.category.toLowerCase());
-            const spent = spendingMap.get(b.category.toLowerCase()) || 0;
-            const remaining = b.monthlyLimit - spent;
-            const percentUsed = b.monthlyLimit > 0 ? (spent / b.monthlyLimit) * 100 : 0;
-            const isOver = spent > b.monthlyLimit;
-            const isNear = !isOver && percentUsed >= 80;
-            const catProjectedSpend = Math.round((spent / daysPassed) * totalDays);
-            const isCategoryPacingFast = !isOver && b.monthlyLimit > 0 && catProjectedSpend > b.monthlyLimit && daysPassed >= 3;
-
-            return (
-              <div
-                key={b.id}
-                style={getChildStyle(idx)}
-                className="animate-slide-up"
-              >
-                <Card
-                  variant="surface"
-                  padding="none"
-                  className={`group lift rounded-2xl p-4 sm:p-5 transition-[transform,box-shadow,border-color,background-color] duration-200 ease-out hover:-translate-y-1 hover:shadow-lg active:translate-y-0 active:scale-[0.99] ${
-                    isOver
-                      ? 'border-rose-400 dark:border-rose-600/70 ring-2 ring-rose-500/30 hover:border-rose-500 hover:shadow-rose-500/10 animate-shake-then-flash'
-                      : isNear
-                      ? 'border-amber-400/50 dark:border-amber-500/40 hover:border-amber-500 hover:shadow-amber-500/10'
-                      : 'border-line hover:border-emerald-500/60 hover:shadow-emerald-500/10 dark:hover:border-emerald-400/50'
-                  }`}
-                >
-                  <div className="flex items-start justify-between">
-                    <div className="flex items-center gap-3">
-                      <div
-                        className="w-12 h-12 rounded-2xl flex items-center justify-center shadow-inner transition-transform group-hover:scale-105"
-                        style={{
-                          backgroundColor: `${catInfo?.color || '#10b981'}20`,
-                          color: catInfo?.color || '#10b981',
-                        }}
-                      >
-                        <IconRenderer name={catInfo?.icon || 'Tag'} className="w-5 h-5" />
-                      </div>
-                      <div>
-                        <h3 className="text-sm sm:text-base font-bold text-ink-1">
-                          {b.category}
-                        </h3>
-                        <p className="text-xs text-ink-3 font-medium">
-                          Limit: <Money value={b.monthlyLimit} size="xs" className="font-bold text-ink-2" />
-                        </p>
-                      </div>
-                    </div>
-
-                    <div className="flex items-center gap-1.5 opacity-80 group-hover:opacity-100 transition-opacity">
-                      <button
-                        onClick={() => handleEdit(b)}
-                        className="press flex min-h-[44px] min-w-[44px] items-center justify-center rounded-xl border border-line text-ink-3 hover:bg-sunken hover:text-ink-1 transition-colors"
-                        title="Edit Limit"
-                      >
-                        <Edit3 className="w-3.5 h-3.5" />
-                      </button>
-                      <button
-                        onClick={() => {
-                          if (window.confirm(`Remove budget for ${b.category}?`)) {
-                            deleteBudget(b.id);
-                          }
-                        }}
-                        className="press flex min-h-[44px] min-w-[44px] items-center justify-center rounded-xl border border-line text-ink-3 hover:text-negative hover:bg-negative-tint transition-colors"
-                        title="Delete Budget"
-                      >
-                        <Trash2 className="w-3.5 h-3.5" />
-                      </button>
-                    </div>
-                  </div>
-
-                  {/* Progress & Numbers */}
-                  <div className="mt-5 space-y-2.5">
-                    <div className="flex justify-between items-baseline text-xs">
-                      <div>
-                        <span className="text-ink-3 font-medium">Spent: </span>
-                        <Money value={spent} size="xs" className="font-extrabold text-ink-1" />
-                      </div>
-                      <div>
-                        <span className="text-ink-3 font-medium">{remaining >= 0 ? 'Remaining: ' : 'Over: '}</span>
-                        <Money
-                          value={Math.abs(remaining)}
-                          size="xs"
-                          tone={remaining >= 0 ? 'positive' : 'negative'}
-                          className="font-extrabold"
-                        />
-                      </div>
-                    </div>
-
-                    <Progress
-                      value={spent}
-                      max={b.monthlyLimit}
-                      tone="auto"
-                      size="sm"
-                    />
-
-                    <div className="flex justify-between items-center text-xs pt-1">
-                      <span className="font-semibold text-ink-3 font-numeric">{percentUsed.toFixed(0)}% utilized</span>
-                      {isOver ? (
-                        <span className="font-bold text-negative flex items-center gap-1 font-numeric">
-                          <ShieldAlert className="w-3.5 h-3.5" />
-                          Exceeded by <Money value={spent - b.monthlyLimit} size="xs" className="text-inherit" />
-                        </span>
-                      ) : isNear ? (
-                        <span className="font-bold text-ink-2 flex items-center gap-1">
-                          <AlertCircle className="w-3.5 h-3.5" />
-                          Near limit
-                        </span>
-                      ) : isCategoryPacingFast ? (
-                        <span className="font-semibold text-ink-2 flex items-center gap-1 font-numeric" title={`Projected: ₹${catProjectedSpend} by month-end`}>
-                          <AlertCircle className="w-3.5 h-3.5" />
-                          Pacing high
-                        </span>
-                      ) : (
-                        <span className="font-semibold text-positive flex items-center gap-1">
-                          <CheckCircle className="w-3.5 h-3.5" />
-                          On track
-                        </span>
-                      )}
-                    </div>
-                  </div>
-                </Card>
-              </div>
-            );
-          })}
-        </div>
-      )}
+      {/* Category Budgets Module with LayoutGroup & AnimatePresence */}
+      <BudgetByCategory
+        selectedCategory={highlightedCategory}
+        onSelectCategory={setHighlightedCategory}
+        onEditCategoryBudget={handleEditItem}
+        onDeleteCategoryBudget={handleDeleteItem}
+        onRebalanceCategory={handleOpenRebalance}
+        onOpenAddBudget={handleOpenAdd}
+        daysPassed={daysPassed}
+        totalDays={totalDays}
+        layout="grid"
+      />
 
       <BudgetModal
         isOpen={isModalOpen}
         onClose={() => setIsModalOpen(false)}
         initialBudget={selectedBudget}
+      />
+
+      <RebalanceBudgetModal
+        isOpen={Boolean(rebalanceTarget)}
+        onClose={() => setRebalanceTarget(null)}
+        targetCategory={rebalanceTarget}
+        allCategories={allItems}
+        onApplyRebalance={handleApplyRebalance}
       />
     </div>
   );

@@ -361,3 +361,43 @@ export interface GamificationState {
   level: number;
 }
 
+// ── Behavioral Motion & Analytical Visualization Types ──
+
+export type ChartViewMode = 'bar' | 'line' | 'combined';
+export type TimeframeWindow = '3M' | '6M' | '1Y' | 'ALL';
+export type BudgetFilterMode = 'all' | 'over' | 'warning' | 'healthy';
+export type BudgetSortOrder = 'utilization' | 'spent' | 'allocated' | 'name';
+
+export interface CashflowPoint {
+  id: string;          // Canonical YYYY-MM key (e.g., "2026-10") for deterministic point matching
+  label: string;       // Display label (e.g., "Oct '26")
+  inflow: number;      // Integer INR >= 0
+  outflow: number;     // Integer INR >= 0
+  netCashflow: number; // Integer INR (inflow - outflow, can be negative)
+  cumulative: number;  // Running trajectory balance in INR
+  categoryOutflow?: number; // Optional cross-highlighted category outflow in INR
+}
+
+export interface BudgetCategoryItem {
+  id: string;          // Stable ID or slug (e.g., budget.id or "cat-housing")
+  name: string;
+  allocated: number;   // Integer INR >= 0
+  spent: number;       // Integer INR >= 0
+  icon?: string;
+  color?: string;
+}
+
+export interface ComputedBudgetMetrics {
+  utilizationRatio: number;  // Raw ratio (safe from division by zero)
+  clampedRatio: number;      // Strictly clamped to [0, 1] for GPU scaleX
+  displayPercent: number;    // Integer percentage for UI badge
+  remainingAmount: number;   // Integer INR >= 0
+  overrunAmount: number;     // Integer INR > 0 when spent > allocated, else 0
+  isOverBudget: boolean;
+  isNearLimit: boolean;
+  baseSplitRatio: number;    // Proportion of bar representing original budget (0 to 1)
+  overrunSplitRatio: number; // Proportion of bar representing overrun excess (0 to 1)
+  statusColor: string;       // Perceptual hex token (#81C995 | #FA903E | #D93025)
+}
+
+

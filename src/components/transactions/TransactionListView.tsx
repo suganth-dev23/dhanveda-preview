@@ -10,7 +10,7 @@ import {
 } from 'lucide-react';
 import { useFinance } from '../../context/FinanceContext';
 import { Transaction, TransactionType, Category, Contact } from '../../types/finance';
-import { getMonthName, getMonthKey, getTodayString } from '../../utils/date';
+import { getMonthName, getMonthKey, getTodayString, getCurrentMonthYear, getPreviousMonthKey } from '../../utils/date';
 import { escapeCsvField } from '../../utils/csv';
 import { useStaggerChildren } from '../../hooks/useStaggerChildren';
 import { useMediaQuery } from '../../hooks/useMediaQuery';
@@ -295,9 +295,8 @@ export const TransactionListView: React.FC<TransactionListViewProps> = React.mem
 
   // Filtered transactions using deferredSearch
   const filteredTransactions = useMemo(() => {
-    const now = new Date();
-    const currentYear = now.getFullYear();
-    const currentMonth = now.getMonth();
+    const { year: currentYear, month: currentMonth, key: currentMonthKey } = getCurrentMonthYear();
+    const lastMonthKey = getPreviousMonthKey();
     const searchLower = deferredSearch.trim().toLowerCase();
 
     return transactions.filter(tx => {
@@ -356,11 +355,8 @@ export const TransactionListView: React.FC<TransactionListViewProps> = React.mem
 
       // 7. Date Range filter
       if (dateRange === 'this_month') {
-        const currentMonthKey = `${currentYear}-${String(currentMonth + 1).padStart(2, '0')}`;
         if (!tx.date || !tx.date.startsWith(currentMonthKey)) return false;
       } else if (dateRange === 'last_month') {
-        const lastMonthDate = new Date(currentYear, currentMonth - 1, 1);
-        const lastMonthKey = `${lastMonthDate.getFullYear()}-${String(lastMonthDate.getMonth() + 1).padStart(2, '0')}`;
         if (!tx.date || !tx.date.startsWith(lastMonthKey)) return false;
       } else if (dateRange === 'last_3_months') {
         let startM = currentMonth - 2;
@@ -370,7 +366,7 @@ export const TransactionListView: React.FC<TransactionListViewProps> = React.mem
           startY -= 1;
         }
         const threeMonthsAgoKey = `${startY}-${String(startM + 1).padStart(2, '0')}-01`;
-        const currentMonthEndKey = `${currentYear}-${String(currentMonth + 1).padStart(2, '0')}-31`;
+        const currentMonthEndKey = `${currentMonthKey}-31`;
         if (!tx.date || tx.date < threeMonthsAgoKey || tx.date > currentMonthEndKey) return false;
       } else if (dateRange === 'custom') {
         if (customStartDate && (!tx.date || tx.date < customStartDate)) return false;
@@ -378,7 +374,7 @@ export const TransactionListView: React.FC<TransactionListViewProps> = React.mem
       }
 
       return true;
-    }).sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+    }).sort((a, b) => (b.date || '').localeCompare(a.date || ''));
   }, [
     transactions,
     deferredSearch,

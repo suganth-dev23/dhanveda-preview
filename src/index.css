@@ -20,24 +20,24 @@
 }
 
 :root {
-  --app: #F7F6F3;          --surface: #FFFFFF;      --sunken: #F0EEEA;
-  --line: #E4E1DA;         --line-input: #7D838D;
-  --ink-1: #14181F;        --ink-2: #4B5563;        --ink-3: #5F6B7A;
-  --primary: #2B4FD8;      --on-primary: #FFFFFF;   --primary-tint: #E8EDFF;
-  --positive: #0B7A55;     --positive-tint: #E6F5EE;
-  --negative: #C2253F;     --negative-tint: #FCEBEE;
-  --warning: #8A5300;      --warning-tint: #FFF3D6;
-  --reward: #8F6410;       --reward-tint: #FFF6DD;  --reward-fill: #F5B742;
+  --app: #F6F5F1;          --surface: #FFFFFF;      --sunken: #EFECE6;
+  --line: #E2DFD7;         --line-input: #7D838D;
+  --ink-1: #12161F;        --ink-2: #475161;        --ink-3: #5E6A7D;
+  --primary: #2563EB;      --on-primary: #FFFFFF;   --primary-tint: #E8F0FE;
+  --positive: #059669;     --positive-tint: #E6F7F0;
+  --negative: #E11D48;     --negative-tint: #FCE8EC;
+  --warning: #B45309;      --warning-tint: #FEF3C7;
+  --reward: #B45309;       --reward-tint: #FEF5D8;  --reward-fill: #F59E0B;
 }
 .dark {
-  --app: #0B0E14;          --surface: #131822;      --sunken: #171E2A;
-  --line: #202836;         --line-input: #66728D;
-  --ink-1: #E8ECF4;        --ink-2: #A3AEC2;        --ink-3: #8591A8;
-  --primary: #8FA8FF;      --on-primary: #0B0E14;   --primary-tint: #1B2547;
-  --positive: #3DD6A0;     --positive-tint: #0F2A22;
-  --negative: #FF7A8E;     --negative-tint: #2E1519;
-  --warning: #FFB84D;      --warning-tint: #2B2110;
-  --reward: #F5B742;       --reward-tint: #2A2210;  --reward-fill: #F5B742;
+  --app: #090D16;          --surface: #111726;      --sunken: #171F32;
+  --line: #222D42;         --line-input: #667594;
+  --ink-1: #F1F5F9;        --ink-2: #A8B5C9;        --ink-3: #8492A9;
+  --primary: #60A5FA;      --on-primary: #090D16;   --primary-tint: #172544;
+  --positive: #34D399;     --positive-tint: #0D2B22;
+  --negative: #FB7185;     --negative-tint: #2D141C;
+  --warning: #FBBF24;      --warning-tint: #2C200E;
+  --reward: #FBBF24;       --reward-tint: #2A2110;  --reward-fill: #F59E0B;
 }
 @theme inline {
   --color-app: var(--app);            --color-surface: var(--surface);    --color-sunken: var(--sunken);

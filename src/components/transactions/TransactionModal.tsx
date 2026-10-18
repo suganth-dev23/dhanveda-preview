@@ -5,9 +5,11 @@ import { Transaction, TransactionType, PaymentMethod, OwedDirection, SplitEntry 
 import { numberToWordsINR, formatINR, roundCurrency, splitAmountEqually } from '../../utils/currency';
 import { getTodayString, sanitizeDateString } from '../../utils/date';
 import { suggestCategory } from '../../utils/categoryMatcher';
-import { Sparkles, Users, Check, X, Lock, Unlock, Plus, Trash2, CheckCircle2, Circle } from 'lucide-react';
+import { Sparkles, Users, Check, X, Lock, Unlock, Plus, Trash2, CheckCircle2, Circle, Zap } from 'lucide-react';
 import { useSubmitOnce } from '../../hooks/useSubmitOnce';
 import { MAX_AMOUNT, MIN_AMOUNT, MIN_DATE_STRING, getMaxDateString, isValidAmount, isValidDate, roundMoney } from '../../utils/validation';
+import { DEFAULT_UPI_PRESETS } from '../../constants/quickLogPresets';
+import { useToast } from '../../context/ToastContext';
 
 export type TransactionTab = 'expense' | 'income' | 'transfer';
 
@@ -54,6 +56,7 @@ const TransactionForm: React.FC<TransactionFormProps> = ({
   initialTransaction,
   initialContactId,
 }) => {
+  const { showToast } = useToast();
   const {
   transactions,
   categories,
@@ -484,26 +487,26 @@ const TransactionForm: React.FC<TransactionFormProps> = ({
 
  const parsedAmount = parseFloat(amount);
  if (isNaN(parsedAmount) || !isValidAmount(parsedAmount)) {
- alert(`Please enter a valid amount between ₹${MIN_AMOUNT} and ₹${MAX_AMOUNT.toLocaleString('en-IN')}`);
+ showToast('danger', 'Invalid Amount', `Please enter a valid amount between ₹${MIN_AMOUNT} and ₹${MAX_AMOUNT.toLocaleString('en-IN')}`);
  reset();
  return;
  }
 
  if (!description.trim()) {
- alert('Please enter a description / merchant name');
+ showToast('danger', 'Missing Description', 'Please enter a description / merchant name');
  reset();
  return;
  }
 
  if (!category || !category.trim()) {
- alert('Please select a valid category');
+ showToast('danger', 'Missing Category', 'Please select a valid category');
  reset();
  return;
  }
 
  const sanitizedDate = sanitizeDateString(date);
  if (!sanitizedDate || !isValidDate(sanitizedDate)) {
- alert(`Please enter a valid date between ${MIN_DATE_STRING} and ${getMaxDateString()}`);
+ showToast('danger', 'Invalid Date', `Please enter a valid date between ${MIN_DATE_STRING} and ${getMaxDateString()}`);
  reset();
  return;
  }
@@ -513,7 +516,7 @@ const TransactionForm: React.FC<TransactionFormProps> = ({
  let splitPayload: SplitEntry[] | undefined = undefined;
  if (isSplitEnabled) {
  if (splitRows.length === 0) {
- alert('Please add at least one person to split this transaction with, or disable the split option.');
+ showToast('danger', 'Split Incomplete', 'Please add at least one person to split this transaction with, or disable the split option.');
  reset();
  return;
  }
@@ -525,7 +528,7 @@ const TransactionForm: React.FC<TransactionFormProps> = ({
  }, 0);
 
  if (totalSplitSum > finalAmount + 0.01) {
- alert(`Total split amounts (₹${totalSplitSum.toFixed(2)}) cannot exceed the transaction amount (₹${finalAmount.toFixed(2)}).`);
+ showToast('danger', 'Split Exceeds Total', `Total split amounts (₹${totalSplitSum.toFixed(2)}) cannot exceed the transaction amount (₹${finalAmount.toFixed(2)}).`);
  reset();
  return;
  }
@@ -534,7 +537,7 @@ const TransactionForm: React.FC<TransactionFormProps> = ({
  for (const row of splitRows) {
  const rowAmt = typeof row.amount === 'number' ? row.amount : parseFloat(row.amount as any) || 0;
  if (isNaN(rowAmt) || !isValidAmount(rowAmt)) {
- alert('Each split participant must have a valid owed amount greater than ₹0.');
+ showToast('danger', 'Invalid Split Share', 'Each split participant must have a valid owed amount greater than ₹0.');
  reset();
  return;
  }
@@ -640,6 +643,42 @@ const TransactionForm: React.FC<TransactionFormProps> = ({
       </button>
      </div>
     </div>
+
+     {!initialTransaction && activeTab === 'expense' && (
+      <div>
+       <div className="flex items-center justify-between mb-1.5">
+        <span className="inline-flex items-center gap-1 text-xs font-bold uppercase tracking-wider text-ink-3">
+         <Zap className="w-3 h-3 text-reward" />
+         <span>Quick-Fill UPI Preset</span>
+        </span>
+        <span className="text-[11px] text-ink-3">1-tap prefill</span>
+       </div>
+       <div className="flex flex-wrap gap-1.5">
+        {DEFAULT_UPI_PRESETS.map(preset => {
+         const Icon = preset.icon;
+         return (
+          <button
+           key={preset.id}
+           type="button"
+           onClick={() => {
+            handleAmountChange(String(preset.amount));
+            setDescription(preset.description);
+            setCategory(preset.category);
+            setPaymentMethod('UPI');
+           }}
+           className="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl bg-sunken hover:bg-primary-tint border border-line hover:border-primary/30 text-xs font-medium text-ink-2 hover:text-ink-1 transition-colors cursor-pointer"
+          >
+           <Icon className="w-3 h-3 text-primary shrink-0" />
+           <span>{preset.label}</span>
+           <span className="font-numeric tabular-nums font-bold text-ink-1">
+            ₹{preset.amount}
+           </span>
+          </button>
+         );
+        })}
+       </div>
+      </div>
+     )}
 
  {/* Amount Input */}
  <div>

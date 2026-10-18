@@ -16,10 +16,12 @@ import {
   Users,
   Trophy,
 } from 'lucide-react';
+import { motion } from 'framer-motion';
 import { useFinance, AppView } from '../../context/FinanceContext';
 import { useGamification } from '../../context/GamificationContext';
-import { Money } from '../ui/Money';
+import { AnimatedCurrency } from '../ui/AnimatedCurrency';
 import { useAnimatedProgress } from '../../hooks/useAnimatedProgress';
+import { SPRING_SNAPPY } from '../../lib/motion-tokens';
 
 interface NavItem {
   id: AppView;
@@ -34,9 +36,7 @@ interface NavSection {
 
 const NAV_SECTIONS: NavSection[] = [
   {
-    items: [
-      { id: 'dashboard', label: 'Dashboard', icon: LayoutDashboard },
-    ],
+    items: [{ id: 'dashboard', label: 'Dashboard', icon: LayoutDashboard }],
   },
   {
     title: 'Money',
@@ -49,9 +49,7 @@ const NAV_SECTIONS: NavSection[] = [
   },
   {
     title: 'People',
-    items: [
-      { id: 'people', label: 'People & Splits', icon: Users },
-    ],
+    items: [{ id: 'people', label: 'People & Splits', icon: Users }],
   },
   {
     title: 'Grow',
@@ -75,9 +73,12 @@ interface SidebarProps {
 }
 
 export const Sidebar: React.FC<SidebarProps> = ({ onOpenAddTx }) => {
-  const { currentView, setCurrentView, darkMode, setDarkMode, totalBalance } = useFinance();
+  const { currentView, setCurrentView, darkMode, setDarkMode, totalBalance } =
+    useFinance();
   const { levelInfo, totalXP } = useGamification();
-  const { displayPercent: progressPercent } = useAnimatedProgress(levelInfo.progress);
+  const { displayPercent: progressPercent } = useAnimatedProgress(
+    levelInfo.progress
+  );
 
   const prevXPRef = React.useRef(totalXP);
   const [xpDelta, setXpDelta] = React.useState<number | null>(null);
@@ -121,7 +122,10 @@ export const Sidebar: React.FC<SidebarProps> = ({ onOpenAddTx }) => {
             Bank &amp; Cash (Liquid)
           </p>
           <div className="mt-0.5">
-            <Money value={totalBalance} size="md" />
+            <AnimatedCurrency
+              value={totalBalance}
+              className="text-base font-extrabold text-ink-1"
+            />
           </div>
         </div>
 
@@ -130,7 +134,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ onOpenAddTx }) => {
           role="button"
           tabIndex={0}
           onClick={() => setCurrentView('badges')}
-          onKeyDown={(e) => {
+          onKeyDown={e => {
             if (e.key === 'Enter' || e.key === ' ') {
               e.preventDefault();
               setCurrentView('badges');
@@ -141,15 +145,15 @@ export const Sidebar: React.FC<SidebarProps> = ({ onOpenAddTx }) => {
           title={`Level ${levelInfo.level} Wealth Architect. ${levelInfo.xpToNext} XP to Level ${levelInfo.level + 1}. Click to view Achievements.`}
         >
           {xpDelta !== null && (
-            <span className="absolute -top-3 right-3 font-numeric font-black text-xs text-reward animate-xp-float pointer-events-none drop-shadow-xs">
+            <span className="absolute -top-3 right-3 font-numeric tabular-nums font-black text-xs text-reward animate-xp-float pointer-events-none drop-shadow-xs">
               +{xpDelta} XP
             </span>
           )}
           <div className="flex items-center justify-between text-xs mb-1">
-            <span className="font-extrabold uppercase tracking-wider text-xs text-reward flex items-center gap-1">
+            <span className="font-extrabold text-xs text-reward flex items-center gap-1">
               <Trophy className="w-3.5 h-3.5 text-reward" /> Level {levelInfo.level}
             </span>
-            <span className="font-numeric text-xs text-ink-3 font-semibold">
+            <span className="font-numeric tabular-nums text-xs text-ink-3 font-semibold">
               {totalXP} XP
             </span>
           </div>
@@ -169,25 +173,28 @@ export const Sidebar: React.FC<SidebarProps> = ({ onOpenAddTx }) => {
         </div>
       </div>
 
-      {/* Primary Action Button (Isolation Effect: single filled primary CTA on desktop) */}
+      {/* Primary Action Button */}
       <div className="px-2 xl:px-4 pt-4 pb-2 flex justify-center">
         <button
           onClick={onOpenAddTx}
           title="Add Transaction"
           aria-label="Add Transaction"
-          className="w-11 h-11 xl:w-full xl:h-auto flex items-center justify-center gap-2 p-0 xl:px-4 xl:py-2.5 rounded-xl bg-primary hover:opacity-95 text-on-primary font-bold text-sm shadow-xs transition-colors press min-h-[44px]"
+          className="w-11 h-11 xl:w-full xl:h-auto flex items-center justify-center gap-2 p-0 xl:px-4 xl:py-2.5 rounded-xl bg-primary hover:opacity-95 text-on-primary font-bold text-sm shadow-xs transition-colors press min-h-[44px] cursor-pointer"
         >
           <Plus className="w-4 h-4 shrink-0" />
           <span className="hidden xl:inline">Add Transaction</span>
         </button>
       </div>
 
-      {/* Navigation sections (Hick's Law / Chunking) */}
-      <nav aria-label="Main Navigation" className="flex-1 px-2 xl:px-3 py-2 space-y-3 overflow-y-auto">
+      {/* Navigation sections with shared-element layoutId indicator */}
+      <nav
+        aria-label="Main Navigation"
+        className="flex-1 px-2 xl:px-3 py-2 space-y-3 overflow-y-auto"
+      >
         {NAV_SECTIONS.map((section, idx) => (
           <div key={idx} className="space-y-0.5">
             {section.title && (
-              <div className="hidden xl:block px-3 py-1 text-xs font-bold uppercase tracking-wider text-ink-3">
+              <div className="hidden xl:block px-3 py-1 text-xs font-semibold text-ink-3">
                 {section.title}
               </div>
             )}
@@ -203,12 +210,19 @@ export const Sidebar: React.FC<SidebarProps> = ({ onOpenAddTx }) => {
                   title={item.label}
                   aria-label={item.label}
                   aria-current={isActive ? 'page' : undefined}
-                  className={`w-full flex items-center justify-center xl:justify-between px-2 xl:px-3.5 py-2 rounded-xl text-sm font-semibold transition-colors duration-150 press min-h-[38px] ${
+                  className={`relative z-10 w-full flex items-center justify-center xl:justify-between px-2 xl:px-3.5 py-2 rounded-xl text-sm font-semibold transition-colors duration-150 min-h-[38px] cursor-pointer ${
                     isActive
-                      ? 'bg-primary-tint text-primary shadow-xs'
+                      ? 'text-primary'
                       : 'text-ink-2 hover:bg-sunken hover:text-ink-1'
                   }`}
                 >
+                  {isActive && (
+                    <motion.span
+                      layoutId="sidebar-active-nav-pill"
+                      transition={SPRING_SNAPPY}
+                      className="absolute inset-0 -z-10 rounded-xl bg-primary-tint shadow-xs border border-primary/20"
+                    />
+                  )}
                   <div className="flex items-center gap-3">
                     <Icon
                       className={`w-4 h-4 shrink-0 ${
@@ -219,13 +233,10 @@ export const Sidebar: React.FC<SidebarProps> = ({ onOpenAddTx }) => {
                           : 'text-ink-3'
                       }`}
                     />
-                    <span className="hidden xl:inline">{item.label}</span>
-                  </div>
-                  {isAI && (
-                    <span className="hidden xl:inline text-xs font-semibold px-2 py-0.5 rounded-full bg-reward-tint text-reward">
-                      BYOK
+                    <span className="hidden xl:inline whitespace-nowrap">
+                      {item.label}
                     </span>
-                  )}
+                  </div>
                 </button>
               );
             })}
@@ -239,14 +250,25 @@ export const Sidebar: React.FC<SidebarProps> = ({ onOpenAddTx }) => {
             title="Settings"
             aria-label="Settings"
             aria-current={currentView === 'settings' ? 'page' : undefined}
-            className={`w-full flex items-center justify-center xl:justify-between px-2 xl:px-3.5 py-2 rounded-xl text-sm font-semibold transition-colors duration-150 press min-h-[38px] ${
+            className={`relative z-10 w-full flex items-center justify-center xl:justify-between px-2 xl:px-3.5 py-2 rounded-xl text-sm font-semibold transition-colors duration-150 min-h-[38px] cursor-pointer ${
               currentView === 'settings'
-                ? 'bg-primary-tint text-primary shadow-xs'
+                ? 'text-primary'
                 : 'text-ink-2 hover:bg-sunken hover:text-ink-1'
             }`}
           >
+            {currentView === 'settings' && (
+              <motion.span
+                layoutId="sidebar-active-nav-pill"
+                transition={SPRING_SNAPPY}
+                className="absolute inset-0 -z-10 rounded-xl bg-primary-tint shadow-xs border border-primary/20"
+              />
+            )}
             <div className="flex items-center gap-3">
-              <Settings className={`w-4 h-4 shrink-0 ${currentView === 'settings' ? 'text-primary' : 'text-ink-3'}`} />
+              <Settings
+                className={`w-4 h-4 shrink-0 ${
+                  currentView === 'settings' ? 'text-primary' : 'text-ink-3'
+                }`}
+              />
               <span className="hidden xl:inline">Settings</span>
             </div>
           </button>
@@ -256,16 +278,19 @@ export const Sidebar: React.FC<SidebarProps> = ({ onOpenAddTx }) => {
       {/* Footer / Theme Toggle */}
       <div className="p-3 xl:p-4 border-t border-line flex items-center justify-center xl:justify-between">
         <div className="hidden xl:flex items-center gap-2 text-xs text-ink-3">
-          <span className="w-2 h-2 rounded-full bg-positive"></span>
-          <span>100% Local Storage</span>
+          <span>Local-first storage</span>
         </div>
         <button
           onClick={() => setDarkMode(prev => !prev)}
-          className="p-2 rounded-xl text-ink-3 hover:text-ink-1 hover:bg-sunken transition-colors min-h-[36px] min-w-[36px] flex items-center justify-center press"
+          className="p-2 rounded-xl text-ink-3 hover:text-ink-1 hover:bg-sunken transition-colors min-h-[36px] min-w-[36px] flex items-center justify-center press cursor-pointer"
           title={darkMode ? 'Switch to light mode' : 'Switch to dark mode'}
           aria-label={darkMode ? 'Switch to light mode' : 'Switch to dark mode'}
         >
-          {darkMode ? <Sun className="w-4 h-4 text-reward" /> : <Moon className="w-4 h-4" />}
+          {darkMode ? (
+            <Sun className="w-4 h-4 text-reward" />
+          ) : (
+            <Moon className="w-4 h-4" />
+          )}
         </button>
       </div>
     </aside>
