@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState } from 'react';
 import { Modal } from '../common/Modal';
 import { useFinance } from '../../context/FinanceContext';
 import { DreamGoal } from '../../types/finance';
@@ -15,57 +15,27 @@ interface DreamModalProps {
   initialDream?: DreamGoal | null;
 }
 
-export const DreamModal: React.FC<DreamModalProps> = ({
-  isOpen,
-  onClose,
+interface DreamFormProps {
+  initialDream?: DreamGoal | null;
+  onClose: () => void;
+}
+
+const DreamForm: React.FC<DreamFormProps> = ({
   initialDream,
+  onClose,
 }) => {
   const { addDream, updateDream } = useFinance();
 
-  const [name, setName] = useState('');
-  const [targetAmount, setTargetAmount] = useState('');
-  const [initialSaved, setInitialSaved] = useState('');
-  const [targetDate, setTargetDate] = useState('');
-  const [category, setCategory] = useState('Travel');
-  const [icon, setIcon] = useState('Compass');
-  const [color, setColor] = useState('#3b82f6');
-  const [priority, setPriority] = useState<'low' | 'medium' | 'high'>('medium');
+  const [name, setName] = useState(initialDream?.name || '');
+  const [targetAmount, setTargetAmount] = useState(initialDream ? initialDream.targetAmount.toString() : '');
+  const [initialSaved, setInitialSaved] = useState(initialDream ? initialDream.currentSaved.toString() : '');
+  const [targetDate, setTargetDate] = useState(initialDream?.targetDate || '');
+  const category = initialDream?.category || 'Travel';
+  const [icon, setIcon] = useState(initialDream?.icon || 'Compass');
+  const [color, setColor] = useState(initialDream?.color || '#3b82f6');
+  const [priority, setPriority] = useState<'low' | 'medium' | 'high'>(initialDream?.priority || 'medium');
   const [formError, setFormError] = useState<string | null>(null);
   const { isSubmitting, startSubmit, reset } = useSubmitOnce();
-  const prevIsOpenRef = useRef(false);
-
-  useEffect(() => {
-    if (!isOpen) {
-      prevIsOpenRef.current = false;
-      return;
-    }
-    const isOpening = isOpen && !prevIsOpenRef.current;
-    if (isOpening) {
-      reset();
-    }
-    if (initialDream) {
-      setName(initialDream.name);
-      setTargetAmount(initialDream.targetAmount.toString());
-      setInitialSaved(initialDream.currentSaved.toString());
-      setTargetDate(initialDream.targetDate || '');
-      setCategory(initialDream.category);
-      setIcon(initialDream.icon);
-      setColor(initialDream.color);
-      setPriority(initialDream.priority);
-      setFormError(null);
-    } else {
-      setName('');
-      setTargetAmount('');
-      setInitialSaved('');
-      setTargetDate('');
-      setCategory('Travel');
-      setIcon('Compass');
-      setColor('#3b82f6');
-      setPriority('medium');
-      setFormError(null);
-    }
-    prevIsOpenRef.current = isOpen;
-  }, [initialDream, isOpen, reset]);
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -134,14 +104,7 @@ export const DreamModal: React.FC<DreamModalProps> = ({
   const parsedTarget = parseFloat(targetAmount) || 0;
 
   return (
-    <Modal
-      isOpen={isOpen}
-      onClose={onClose}
-      title={initialDream ? 'Edit Dream / Goal' : 'Create New Dream Goal'}
-      subtitle="Set a vision with a target date and auto-calculated monthly savings"
-      maxWidth="xl"
-    >
-      <form onSubmit={handleSubmit} className="space-y-4">
+    <form onSubmit={handleSubmit} className="space-y-4">
         {formError && (
           <div className="p-3 rounded-xl bg-rose-500/10 border border-rose-500/30 text-xs font-semibold text-rose-600 dark:text-rose-400">
             {formError}
@@ -304,6 +267,29 @@ export const DreamModal: React.FC<DreamModalProps> = ({
           </button>
         </div>
       </form>
+  );
+};
+
+export const DreamModal: React.FC<DreamModalProps> = ({
+  isOpen,
+  onClose,
+  initialDream,
+}) => {
+  return (
+    <Modal
+      isOpen={isOpen}
+      onClose={onClose}
+      title={initialDream ? 'Edit Dream / Goal' : 'Create New Dream Goal'}
+      subtitle="Set a vision with a target date and auto-calculated monthly savings"
+      maxWidth="xl"
+    >
+      {isOpen && (
+        <DreamForm
+          key={initialDream?.id || 'new'}
+          initialDream={initialDream}
+          onClose={onClose}
+        />
+      )}
     </Modal>
   );
 };

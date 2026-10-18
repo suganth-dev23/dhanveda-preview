@@ -1,6 +1,6 @@
 import Papa from 'papaparse';
 import { StagedTransaction, TransactionType, PaymentMethod } from '../types/finance';
-import { suggestCategory, detectPaymentMethod } from './categoryMatcher';
+import { AutoRule, getCustomAutoRules, suggestCategory, detectPaymentMethod } from './categoryMatcher';
 import { parseINR } from './currency';
 import { isValidAmount, isValidDate, roundMoney } from './validation';
 
@@ -21,16 +21,26 @@ export function normalizeDate(rawDate: string): string {
 
   const clean = String(rawDate).trim();
 
-  // Already YYYY-MM-DD
-  if (/^\d{4}-\d{2}-\d{2}$/.test(clean)) return clean;
+  // Already YYYY-MM-DD or YYYY/MM/DD or YYYY.MM.DD
+  const ymdMatch = clean.match(/^(\d{4})[./-](\d{1,2})[./-](\d{1,2})/);
+  if (ymdMatch) {
+    return `${ymdMatch[1]}-${ymdMatch[2].padStart(2, '0')}-${ymdMatch[3].padStart(2, '0')}`;
+  }
 
-  // DD/MM/YYYY, DD-MM-YYYY, DD.MM.YYYY or 2-digit year DD/MM/YY
+  // DD/MM/YYYY, DD-MM-YYYY, DD.MM.YYYY or MM/DD/YYYY or 2-digit year
   const dmyMatch = clean.match(/^(\d{1,2})[./-](\d{1,2})[./-](\d{2,4})/);
   if (dmyMatch) {
-    const day = dmyMatch[1].padStart(2, '0');
-    const month = dmyMatch[2].padStart(2, '0');
+    let day = dmyMatch[1].padStart(2, '0');
+    let month = dmyMatch[2].padStart(2, '0');
     let year = dmyMatch[3];
     if (year.length === 2) year = `20${year}`;
+    const p1 = parseInt(dmyMatch[1], 10);
+    const p2 = parseInt(dmyMatch[2], 10);
+    // If first part is <= 12 and second part is > 12, this is MM/DD/YYYY format
+    if (p1 <= 12 && p2 > 12) {
+      month = dmyMatch[1].padStart(2, '0');
+      day = dmyMatch[2].padStart(2, '0');
+    }
     return `${year}-${month}-${day}`;
   }
 
@@ -85,10 +95,11 @@ export interface CSVParseResult {
 /**
  * Intelligent multi-pass CSV statement parser with automatic header row detection
  */
-export async function parseCSVStatement(file: File): Promise<CSVParseResult> {
+export async function parseCSVStatement(file: File, customRules?: AutoRule[]): Promise<CSVParseResult> {
   const fileText = await file.text();
   const errors: string[] = [];
   const transactions: StagedTransaction[] = [];
+  const rules = customRules ?? getCustomAutoRules();
 
   const cleanText = (fileText || '').replace(/^\uFEFF/, '').trim();
 
@@ -320,7 +331,7 @@ export async function parseCSVStatement(file: File): Promise<CSVParseResult> {
           const val = parseINR(row[c] || '');
           if (Math.abs(val) > 0) {
             amount = Math.abs(val);
-            type = val < 0 ? 'debit' : 'debit';
+            type = val < 0 ? 'debit' : 'credit';
             break;
           }
         }
@@ -345,7 +356,7 @@ export async function parseCSVStatement(file: File): Promise<CSVParseResult> {
         .replace(/\s+/g, ' ')
         .trim();
 
-      const categoryMatch = suggestCategory(cleanDescription);
+      const categoryMatch = suggestCategory(cleanDescription, rules);
       const paymentMethod: PaymentMethod = detectPaymentMethod(cleanDescription + ' ' + (rawRef || ''));
 
       // If category matcher is highly confident about salary/income and type isn't explicitly debit

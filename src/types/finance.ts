@@ -87,7 +87,7 @@ export interface Transaction {
   splitWith?: SplitEntry[]; // array of split entries, 0 or more
 }
 
-export type RecurrenceFrequency = 'weekly' | 'bi-weekly' | 'monthly' | 'quarterly' | 'yearly';
+export type RecurrenceFrequency = 'daily' | 'weekly' | 'bi-weekly' | 'monthly' | 'quarterly' | 'semi-annually' | 'yearly';
 
 export interface RecurringPayment {
   id: string;
@@ -185,6 +185,8 @@ export interface Investment {
   sipDay?: number; // 1 to 28
   platform?: string; // e.g. Zerodha, Groww, INDmoney, Kuvera, SBI
   notes?: string;
+  startDate?: string; // YYYY-MM-DD holding inception date
+  createdAt?: string; // ISO creation timestamp
   lastUpdated: string;
   updatedAt?: string;
   logs?: InvestmentLog[];

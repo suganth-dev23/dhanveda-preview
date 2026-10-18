@@ -22,7 +22,7 @@ const PALETTE_FALLBACK = [
   '#8B5CF6', // Violet
   '#64748B', // Slate
 ];
- 
+
 interface CategoryTooltipProps {
   active?: boolean;
   payload?: any[];
@@ -33,20 +33,41 @@ const CategoryTooltip: React.FC<CategoryTooltipProps> = ({ active, payload, tota
   if (active && payload && payload.length) {
     const data = payload[0].payload;
     const pct = totalExpense > 0 ? (data.spent / totalExpense) * 100 : 0;
+    const swatchColor = data.color || '#3B82F6';
     return (
-      <div className="bg-surface/95 p-3 rounded-xl shadow-xl border border-line text-xs">
-        <p className="font-bold text-ink-1 flex items-center gap-2">
-          <span className="w-2.5 h-2.5 rounded-full" style={{ backgroundColor: data.color || '#3B82F6' }} />
-          {data.category}
-        </p>
-        <p className="font-numeric text-ink-2 font-semibold mt-1" data-money="true">
-          {formatINR(data.spent)} ({pct.toFixed(1)}%)
-        </p>
-        {data.budget > 0 && (
-          <p className="font-numeric text-ink-3 text-xs mt-0.5" data-money="true">
-            Budget: {formatINR(data.budget)} ({data.percentUsed.toFixed(0)}% used)
-          </p>
-        )}
+      <div className="bg-surface/85 backdrop-blur-md p-3.5 rounded-xl shadow-xl border border-line/80 text-xs space-y-2 animate-scale-in min-w-[180px]">
+        <div className="flex items-center justify-between gap-3 border-b border-line/60 pb-1.5">
+          <div className="flex items-center gap-2 truncate">
+            <span
+              className="w-2.5 h-2.5 rounded-full ring-2 shrink-0"
+              style={{
+                backgroundColor: swatchColor,
+                borderColor: swatchColor,
+                boxShadow: `0 0 6px ${swatchColor}66`,
+              }}
+            />
+            <span className="font-bold text-ink-1 truncate">{data.category}</span>
+          </div>
+          <span className="text-[11px] font-bold font-numeric px-1.5 py-0.5 rounded bg-sunken text-ink-2 shrink-0">
+            {pct.toFixed(1)}%
+          </span>
+        </div>
+        <div className="space-y-1 pt-0.5">
+          <div className="flex items-baseline justify-between gap-3">
+            <span className="text-ink-3 text-[11px]">Expense</span>
+            <span className="font-bold font-numeric text-ink-1" data-money="true">
+              {formatINR(data.spent)}
+            </span>
+          </div>
+          {data.budget > 0 && (
+            <div className="flex items-baseline justify-between gap-3 text-ink-3 text-[11px] pt-1 border-t border-line/40">
+              <span>Budget ({data.percentUsed.toFixed(0)}%)</span>
+              <span className="font-numeric" data-money="true">
+                {formatINR(data.budget)}
+              </span>
+            </div>
+          )}
+        </div>
       </div>
     );
   }
@@ -91,7 +112,9 @@ export const CategoryExpenseChart: React.FC = () => {
     if (selectedMonthKey === currentMonthKey) {
       const safeSpending = Array.isArray(categorySpendingThisMonth) ? categorySpendingThisMonth : [];
       const safeExpense = Number.isFinite(currentMonthExpense) && currentMonthExpense > 0 ? currentMonthExpense : 0;
-      const list = safeSpending.filter(c => Number.isFinite(c.spent) && c.spent > 0);
+      const list = safeSpending
+        .filter(c => Number.isFinite(c.spent) && c.spent > 0)
+        .sort((a, b) => b.spent - a.spent);
       return {
         activeMonthExpense: safeExpense,
         expenseCategories: list,
@@ -204,7 +227,7 @@ export const CategoryExpenseChart: React.FC = () => {
             <button
               type="button"
               onClick={() => setSelectedMonthKey(currentMonthKey)}
-              className={`px-2.5 py-1 rounded-lg font-semibold transition-all ${
+              className={`press px-2.5 py-1 rounded-lg font-semibold transition-all ${
                 isCurrentMonth
                   ? 'bg-surface text-primary shadow-xs font-bold'
                   : 'text-ink-3 hover:text-ink-1'
@@ -215,7 +238,7 @@ export const CategoryExpenseChart: React.FC = () => {
             <button
               type="button"
               onClick={() => setSelectedMonthKey(lastMonthKey)}
-              className={`px-2.5 py-1 rounded-lg font-semibold transition-all ${
+              className={`press px-2.5 py-1 rounded-lg font-semibold transition-all ${
                 isLastMonth
                   ? 'bg-surface text-primary shadow-xs font-bold'
                   : 'text-ink-3 hover:text-ink-1'
@@ -287,42 +310,47 @@ export const CategoryExpenseChart: React.FC = () => {
         </div>
       ) : (
         <div className="flex flex-col sm:flex-row items-center gap-4 flex-1">
-          {/* Donut Chart */}
-          <div className="w-full sm:w-1/2 h-[200px] min-w-0 relative flex items-center justify-center">
-            <ResponsiveContainer width="100%" height={200} minWidth={160} minHeight={160}>
-              <PieChart margin={{ top: 0, right: 0, bottom: 0, left: 0 }}>
-                <Pie
-                  key={`${selectedMonthKey}-${expenseCategories.length}`}
-                  data={expenseCategories}
-                  dataKey="spent"
-                  nameKey="category"
-                  cx="50%"
-                  cy="50%"
-                  innerRadius={55}
-                  outerRadius={80}
-                  paddingAngle={3}
-                  stroke="none"
-                  isAnimationActive={!reducedMotion}
-                  animationDuration={700}
-                  animationEasing="ease-out"
-                  animationBegin={0}
-                >
-                  {expenseCategories.map((entry, index) => (
-                    <Cell
-                      key={`cell-${index}`}
-                      fill={entry.color || PALETTE_FALLBACK[index % PALETTE_FALLBACK.length]}
-                    />
-                  ))}
-                </Pie>
-                <Tooltip content={<CategoryTooltip totalExpense={activeMonthExpense} />} />
-              </PieChart>
-            </ResponsiveContainer>
-            {/* Center label */}
-            <div className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none text-center">
-              <span className="text-xs uppercase font-medium text-ink-3">Total</span>
-              <span className="font-numeric text-xs font-bold text-ink-1">
-                <AnimatedNumber value={activeMonthExpense} formatter={formatCompactINR} animateOnMount={true} />
-              </span>
+          {/* Donut Chart with Perfectly Centered Total */}
+          <div className="w-full sm:w-1/2 flex items-center justify-center">
+            <div className="relative w-[200px] h-[200px] flex items-center justify-center shrink-0">
+              <ResponsiveContainer width={200} height={200}>
+                <PieChart margin={{ top: 0, right: 0, bottom: 0, left: 0 }}>
+                  <Pie
+                    data={expenseCategories}
+                    dataKey="spent"
+                    nameKey="category"
+                    cx="50%"
+                    cy="50%"
+                    innerRadius={55}
+                    outerRadius={80}
+                    paddingAngle={expenseCategories.length > 1 ? 3 : 0}
+                    stroke="none"
+                    isAnimationActive={false}
+                  >
+                    {expenseCategories.map((entry, index) => (
+                      <Cell
+                        key={`cell-${selectedMonthKey}-${entry.category}`}
+                        fill={entry.color || PALETTE_FALLBACK[index % PALETTE_FALLBACK.length]}
+                      />
+                    ))}
+                  </Pie>
+                  <Tooltip content={<CategoryTooltip totalExpense={activeMonthExpense} />} />
+                </PieChart>
+              </ResponsiveContainer>
+
+              {/* Center total display: perfectly centered inside the 200x200 square */}
+              <div className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none text-center select-none">
+                <span className="text-[10px] uppercase tracking-wider font-semibold text-ink-3">Total</span>
+                <span className="font-numeric text-sm sm:text-base font-bold text-ink-1 tracking-tight">
+                  <AnimatedNumber
+                    key={selectedMonthKey}
+                    value={activeMonthExpense}
+                    formatter={formatCompactINR}
+                    duration={400}
+                    animateOnMount={true}
+                  />
+                </span>
+              </div>
             </div>
           </div>
 
@@ -334,7 +362,8 @@ export const CategoryExpenseChart: React.FC = () => {
               return (
                 <div
                   key={cat.category}
-                  className="flex items-center justify-between text-xs"
+                  className="flex items-center justify-between text-xs transition-all duration-300 hover:translate-x-0.5"
+                  style={reducedMotion ? undefined : { animation: `fade-in 0.3s ease-out ${idx * 0.05}s both` }}
                 >
                   <div className="flex items-center gap-2 truncate">
                     <span className="w-2.5 h-2.5 rounded-full flex-shrink-0" style={{ backgroundColor: swatch }} />

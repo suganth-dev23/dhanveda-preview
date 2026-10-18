@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo, useCallback, useRef } from 'react';
+import React, { useState, useMemo, useCallback } from 'react';
 import { Modal } from '../common/Modal';
 import { useFinance } from '../../context/FinanceContext';
 import { Transaction, TransactionType, PaymentMethod, OwedDirection, SplitEntry } from '../../types/finance';
@@ -31,90 +31,152 @@ const PAYMENT_METHODS: PaymentMethod[] = [
 ];
 
 interface SplitRowState {
- id: string;
- contactId?: string;
- label?: string;
- amount: number;
- direction: OwedDirection;
- settled: boolean;
- isPinned: boolean;
+  id: string;
+  contactId?: string;
+  label?: string;
+  amount: number;
+  rawInput?: string;
+  direction: OwedDirection;
+  settled: boolean;
+  settledAmount?: number;
+  linkedTransactionId?: string;
+  isPinned: boolean;
 }
 
-export const TransactionModal: React.FC<TransactionModalProps> = ({
- isOpen,
- onClose,
- initialTransaction,
- initialContactId,
+interface TransactionFormProps {
+  onClose: () => void;
+  initialTransaction?: Transaction | null;
+  initialContactId?: string;
+}
+
+const TransactionForm: React.FC<TransactionFormProps> = ({
+  onClose,
+  initialTransaction,
+  initialContactId,
 }) => {
- const {
- transactions,
- categories,
- contacts,
- contactBalances,
- addContact,
- addTransaction,
- updateTransaction,
- recordSettlement,
- } = useFinance();
+  const {
+  transactions,
+  categories,
+  contacts,
+  contactBalances,
+  addContact,
+  addTransaction,
+  updateTransaction,
+  recordSettlement,
+  } = useFinance();
 
- const { isSubmitting, startSubmit, reset } = useSubmitOnce();
+  const { isSubmitting, startSubmit, reset } = useSubmitOnce();
 
- const [date, setDate] = useState<string>(getTodayString());
- const [amount, setAmount] = useState<string>('');
- const [type, setType] = useState<TransactionType>('debit');
- const [activeTab, setActiveTab] = useState<TransactionTab>('expense');
- const [category, setCategory] = useState<string>('Food & Dining');
- const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>('UPI');
- const [description, setDescription] = useState<string>('');
- const [person, setPerson] = useState<string>('');
- const [referenceId, setReferenceId] = useState<string>('');
- const [dismissedSettlementSuggestion, setDismissedSettlementSuggestion] = useState<boolean>(false);
+  const [date, setDate] = useState<string>(() => initialTransaction?.date || getTodayString());
+  const [amount, setAmount] = useState<string>(() => initialTransaction ? initialTransaction.amount.toString() : '');
+  const [type, setType] = useState<TransactionType>(() => initialTransaction ? initialTransaction.type : 'debit');
+  const [activeTab, setActiveTab] = useState<TransactionTab>(() => {
+    if (initialTransaction) {
+      if (initialTransaction.type === 'credit') return 'income';
+      if (
+        initialTransaction.paymentMethod === 'Bank Transfer' &&
+        (initialTransaction.category.toLowerCase().includes('transfer') ||
+          initialTransaction.category === 'Others' ||
+          initialTransaction.description.toLowerCase().includes('transfer'))
+      ) {
+        return 'transfer';
+      }
+      return 'expense';
+    }
+    return 'expense';
+  });
+  const [category, setCategory] = useState<string>(() => initialTransaction?.category || 'Food & Dining');
+  const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>(() => initialTransaction?.paymentMethod || 'UPI');
+  const [description, setDescription] = useState<string>(() => initialTransaction?.description || '');
+  const [person, setPerson] = useState<string>(() => {
+    if (initialTransaction) return initialTransaction.person || '';
+    if (initialContactId) {
+      const c = contacts.find(contact => contact.id === initialContactId);
+      return c ? c.name : '';
+    }
+    return '';
+  });
+  const [referenceId, setReferenceId] = useState<string>(() => initialTransaction?.referenceId || '');
+  const [dismissedSettlementSuggestion, setDismissedSettlementSuggestion] = useState<boolean>(false);
 
- const balanceMap = useMemo(() => {
- return new Map(contactBalances.map(b => [b.contactId, b.netAmount]));
- }, [contactBalances]);
+  const balanceMap = useMemo(() => {
+  return new Map(contactBalances.map(b => [b.contactId, b.netAmount]));
+  }, [contactBalances]);
 
- // Distinct person suggestions from previous transactions history
- const personSuggestions = useMemo(() => {
- const set = new Set<string>();
- transactions.forEach(t => {
- if (t.person && t.person.trim()) {
- set.add(t.person.trim());
- }
- });
- return Array.from(set).sort((a, b) => a.localeCompare(b, undefined, { sensitivity: 'base' }));
- }, [transactions]);
+  // Distinct person suggestions from previous transactions history
+  const personSuggestions = useMemo(() => {
+  const set = new Set<string>();
+  transactions.forEach(t => {
+  if (t.person && t.person.trim()) {
+  set.add(t.person.trim());
+  }
+  });
+  return Array.from(set).sort((a, b) => a.localeCompare(b, undefined, { sensitivity: 'base' }));
+  }, [transactions]);
 
- // Split / Multi-Person IOU State
- const [isSplitEnabled, setIsSplitEnabled] = useState<boolean>(false);
- const [autoSplitRemaining, setAutoSplitRemaining] = useState<boolean>(true);
- const [splitRows, setSplitRows] = useState<SplitRowState[]>([]);
- const [unnamedCountToAdd, setUnnamedCountToAdd] = useState<number>(3);
- const [isCreatingContact, setIsCreatingContact] = useState<boolean>(false);
- const [creatingContactForRowId, setCreatingContactForRowId] = useState<string | null>(null);
- const [newPersonName, setNewPersonName] = useState<string>('');
+  // Split / Multi-Person IOU State
+  const [isSplitEnabled, setIsSplitEnabled] = useState<boolean>(() => {
+    if (initialTransaction) {
+      return Boolean(initialTransaction.splitWith && initialTransaction.splitWith.length > 0);
+    }
+    return Boolean(initialContactId);
+  });
+  const [autoSplitRemaining, setAutoSplitRemaining] = useState<boolean>(() => {
+    if (initialTransaction) {
+      return !(initialTransaction.splitWith && initialTransaction.splitWith.length > 0);
+    }
+    return true;
+  });
+  const [splitRows, setSplitRows] = useState<SplitRowState[]>(() => {
+    if (initialTransaction?.splitWith && initialTransaction.splitWith.length > 0) {
+      return initialTransaction.splitWith.map(s => ({
+        id: s.id || `split-${Date.now()}-${Math.random().toString(36).substring(2, 6)}`,
+        contactId: s.contactId,
+        label: s.label,
+        amount: s.amount,
+        direction: s.direction,
+        settled: Boolean(s.settled),
+        settledAmount: s.settledAmount,
+        linkedTransactionId: s.linkedTransactionId,
+        isPinned: true,
+      }));
+    }
+    if (initialContactId) {
+      return [
+        {
+          id: `split-${Date.now()}-${Math.random().toString(36).substring(2, 6)}`,
+          contactId: initialContactId,
+          amount: 0,
+          direction: 'they_owe_me',
+          settled: false,
+          isPinned: false,
+        },
+      ];
+    }
+    return [];
+  });
+  const [unnamedCountToAdd, setUnnamedCountToAdd] = useState<number>(3);
+  const [isCreatingContact, setIsCreatingContact] = useState<boolean>(false);
+  const [creatingContactForRowId, setCreatingContactForRowId] = useState<string | null>(null);
+  const [newPersonName, setNewPersonName] = useState<string>('');
 
  const numAmount = parseFloat(amount) || 0;
 
  // Check if this manual transaction matches an existing contact's balance (Repayment Detection)
- const matchingRepaymentContact = useMemo(() => {
- if (initialTransaction || isSplitEnabled || dismissedSettlementSuggestion || numAmount <= 0) {
- return null;
- }
-
+ let matchingRepaymentContact: { contact: typeof contacts[0]; isOwedToMe: boolean } | null = null;
+ if (!initialTransaction && !isSplitEnabled && !dismissedSettlementSuggestion && numAmount > 0) {
  for (const contact of contacts) {
  const bal = balanceMap.get(contact.id) || 0;
- // If Credit (income): contact owes user money (bal > 0)
  if (type === 'credit' && bal > 0 && Math.abs(bal - numAmount) < 0.01) {
- return { contact, isOwedToMe: true };
+ matchingRepaymentContact = { contact, isOwedToMe: true };
+ break;
  }
- // If Debit (expense): user owes contact money (bal < 0)
  if (type === 'debit' && bal < 0 && Math.abs(Math.abs(bal) - numAmount) < 0.01) {
- return { contact, isOwedToMe: false };
+ matchingRepaymentContact = { contact, isOwedToMe: false };
+ break;
  }
  }
- return null;
- }, [initialTransaction, isSplitEnabled, dismissedSettlementSuggestion, numAmount, contacts, balanceMap, type]);
+ }
   const handleTabChange = (newTab: TransactionTab) => {
   setActiveTab(newTab);
   if (newTab === 'expense') {
@@ -233,107 +295,6 @@ export const TransactionModal: React.FC<TransactionModalProps> = ({
   []
  );
 
- const prevIsOpenRef = useRef(false);
- const prevInitialTxIdRef = useRef<string | undefined>(undefined);
- const prevInitialContactIdRef = useRef<string | undefined>(undefined);
-
- useEffect(() => {
-  if (!isOpen) {
-   prevIsOpenRef.current = false;
-   return;
-  }
-  const isOpening = isOpen && !prevIsOpenRef.current;
-  const isDifferentTx = initialTransaction?.id !== prevInitialTxIdRef.current;
-  const isDifferentContact = initialContactId !== prevInitialContactIdRef.current;
-
- // Only re-initialize form state when modal transitions from closed to open,
- // or when the targeted transaction/contact genuinely changes.
- // NEVER wipe user inputs or split rows simply because `contacts` state updated!
- if (isOpening || isDifferentTx || isDifferentContact) {
- reset();
- if (initialTransaction) {
- setDate(initialTransaction.date);
- setAmount(initialTransaction.amount.toString());
- setType(initialTransaction.type);
- if (initialTransaction.type === 'credit') {
-  setActiveTab('income');
- } else if (
-  initialTransaction.paymentMethod === 'Bank Transfer' &&
-  (initialTransaction.category.toLowerCase().includes('transfer') ||
-   initialTransaction.category === 'Others' ||
-   initialTransaction.description.toLowerCase().includes('transfer'))
- ) {
-  setActiveTab('transfer');
- } else {
-  setActiveTab('expense');
- }
- setCategory(initialTransaction.category);
- setPaymentMethod(initialTransaction.paymentMethod);
- setDescription(initialTransaction.description);
- setPerson(initialTransaction.person || '');
- setReferenceId(initialTransaction.referenceId || '');
-
- if (initialTransaction.splitWith && initialTransaction.splitWith.length > 0) {
- setIsSplitEnabled(true);
- setAutoSplitRemaining(false); // Preserve existing custom amounts on edit
- setSplitRows(
- initialTransaction.splitWith.map(s => ({
- id: s.id || `split-${Date.now()}-${Math.random().toString(36).substring(2, 6)}`,
- contactId: s.contactId,
- label: s.label,
- amount: s.amount,
- direction: s.direction,
- settled: Boolean(s.settled),
- isPinned: true,
- }))
- );
- } else {
- setIsSplitEnabled(false);
- setAutoSplitRemaining(true);
- setSplitRows([]);
- }
- } else {
- setDate(getTodayString());
- setAmount('');
- setType('debit');
- setActiveTab('expense');
- setCategory('Food & Dining');
- setPaymentMethod('UPI');
- setDescription('');
- setReferenceId('');
-
- if (initialContactId) {
- const contact = contacts.find(c => c.id === initialContactId);
- setPerson(contact ? contact.name : '');
- setIsSplitEnabled(true);
- setAutoSplitRemaining(true);
- setSplitRows([
- {
- id: `split-${Date.now()}-${Math.random().toString(36).substring(2, 6)}`,
- contactId: initialContactId,
- amount: 0,
- direction: 'they_owe_me',
- settled: false,
- isPinned: false,
- },
- ]);
- } else {
- setPerson('');
- setIsSplitEnabled(false);
- setAutoSplitRemaining(true);
- setSplitRows([]);
- }
- }
- setIsCreatingContact(false);
- setNewPersonName('');
- setCreatingContactForRowId(null);
- setDismissedSettlementSuggestion(false);
- }
-
- prevIsOpenRef.current = isOpen;
- prevInitialTxIdRef.current = initialTransaction?.id;
- prevInitialContactIdRef.current = initialContactId;
- }, [initialTransaction, initialContactId, isOpen, contacts, reset]);
 
  // Recalculate auto-split when total amount changes and auto-split is on
  const handleAmountChange = (newAmountStr: string) => {
@@ -588,6 +549,8 @@ export const TransactionModal: React.FC<TransactionModalProps> = ({
  amount: roundMoney(val),
  direction: r.direction,
  settled: Boolean(r.settled),
+ settledAmount: r.settledAmount,
+ linkedTransactionId: r.linkedTransactionId,
  };
  });
  }
@@ -632,13 +595,7 @@ export const TransactionModal: React.FC<TransactionModalProps> = ({
  const words = numAmount > 0 ? numberToWordsINR(numAmount) : '';
 
  return (
-  <Modal
-   isOpen={isOpen}
-   onClose={onClose}
-   title={initialTransaction ? 'Edit Transaction' : 'Add New Transaction'}
-   subtitle={initialTransaction ? 'Update transaction details' : 'Log an expense, income, or transfer entry'}
-  >
-   <form onSubmit={handleSubmit} className="space-y-4">
+  <form onSubmit={handleSubmit} className="space-y-4">
     {/* Type Toggle: Expense / Income / Transfer */}
     <div>
      <label className="block text-xs font-bold uppercase tracking-wider text-ink-3 mb-1.5">
@@ -1023,16 +980,26 @@ export const TransactionModal: React.FC<TransactionModalProps> = ({
  ₹
  </span>
  <input
-       type="number"
- step="0.01"
- value={row.amount || ''}
- onChange={e =>
- handleRowChange(row.id, {
- amount: parseFloat(e.target.value) || 0,
- })
- }
- placeholder="0.00"
- className="font-numeric tabular-nums w-full pl-5 pr-2 py-1 rounded-xl border border-line bg-sunken text-xs font-black text-ink-1 focus:outline-none focus:ring-1 focus:ring-primary text-right"
+   type="number"
+   step="any"
+   value={row.rawInput !== undefined ? row.rawInput : (row.amount || '')}
+   onChange={e => {
+     const str = e.target.value;
+     handleRowChange(row.id, {
+       rawInput: str,
+       amount: parseFloat(str) || 0,
+     });
+   }}
+   onBlur={() => {
+     if (row.rawInput !== undefined) {
+       handleRowChange(row.id, {
+         rawInput: undefined,
+         amount: roundMoney(row.amount || 0),
+       });
+     }
+   }}
+   placeholder="0.00"
+   className="font-numeric tabular-nums w-full pl-5 pr-2 py-1 rounded-xl border border-line bg-sunken text-xs font-black text-ink-1 focus:outline-none focus:ring-1 focus:ring-primary text-right"
  />
  </div>
 
@@ -1161,6 +1128,30 @@ export const TransactionModal: React.FC<TransactionModalProps> = ({
  </button>
  </div>
  </form>
- </Modal>
  );
+};
+
+export const TransactionModal: React.FC<TransactionModalProps> = ({
+  isOpen,
+  onClose,
+  initialTransaction,
+  initialContactId,
+}) => {
+  return (
+    <Modal
+      isOpen={isOpen}
+      onClose={onClose}
+      title={initialTransaction ? 'Edit Transaction' : 'Add New Transaction'}
+      subtitle={initialTransaction ? 'Update transaction details' : 'Log an expense, income, or transfer entry'}
+    >
+      {isOpen && (
+        <TransactionForm
+          key={initialTransaction?.id ?? initialContactId ?? 'new'}
+          onClose={onClose}
+          initialTransaction={initialTransaction}
+          initialContactId={initialContactId}
+        />
+      )}
+    </Modal>
+  );
 };

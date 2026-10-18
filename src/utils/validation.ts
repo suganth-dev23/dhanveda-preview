@@ -26,13 +26,19 @@ export function isValidAmount(amount: any): boolean {
 export function isValidDate(dateStr: any): boolean {
   if (typeof dateStr !== 'string') return false;
   if (!/^\d{4}-\d{2}-\d{2}$/.test(dateStr)) return false;
-  const [, monthStr, dayStr] = dateStr.split('-');
+  const [yearStr, monthStr, dayStr] = dateStr.split('-');
+  const year = parseInt(yearStr, 10);
   const month = parseInt(monthStr, 10);
   const day = parseInt(dayStr, 10);
   if (month < 1 || month > 12 || day < 1 || day > 31) return false;
 
   const d = new Date(dateStr + 'T00:00:00Z');
   if (isNaN(d.getTime())) return false;
+
+  // Ensure JavaScript's Date parser didn't silently roll over invalid calendar dates (e.g. Feb 31 -> Mar 2)
+  if (d.getUTCFullYear() !== year || (d.getUTCMonth() + 1) !== month || d.getUTCDate() !== day) {
+    return false;
+  }
 
   const minDate = new Date(`${MIN_DATE_STRING}T00:00:00Z`);
   const maxDate = new Date(`${getMaxDateString()}T23:59:59Z`);

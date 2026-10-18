@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState } from 'react';
 import { Modal } from '../common/Modal';
 import { useFinance } from '../../context/FinanceContext';
 import { Investment, InvestmentType } from '../../types/finance';
@@ -10,6 +10,11 @@ interface InvestmentModalProps {
   isOpen: boolean;
   onClose: () => void;
   initialInvestment?: Investment | null;
+}
+
+interface InvestmentFormProps {
+  initialInvestment?: Investment | null;
+  onClose: () => void;
 }
 
 const INVESTMENT_TYPES: InvestmentType[] = [
@@ -26,21 +31,20 @@ const INVESTMENT_TYPES: InvestmentType[] = [
   'Other',
 ];
 
-export const InvestmentModal: React.FC<InvestmentModalProps> = ({
-  isOpen,
-  onClose,
+const InvestmentForm: React.FC<InvestmentFormProps> = ({
   initialInvestment,
+  onClose,
 }) => {
   const { addInvestment, updateInvestment } = useFinance();
 
-  const [name, setName] = useState('');
-  const [type, setType] = useState<InvestmentType>('Mutual Funds');
-  const [investedAmount, setInvestedAmount] = useState('');
-  const [currentValue, setCurrentValue] = useState('');
-  const [sipAmount, setSipAmount] = useState('');
-  const [sipDay, setSipDay] = useState('');
-  const [platform, setPlatform] = useState('');
-  const [notes, setNotes] = useState('');
+  const [name, setName] = useState(initialInvestment?.name || '');
+  const [type, setType] = useState<InvestmentType>(initialInvestment?.type || 'Mutual Funds');
+  const [investedAmount, setInvestedAmount] = useState(initialInvestment ? initialInvestment.investedAmount.toString() : '');
+  const [currentValue, setCurrentValue] = useState(initialInvestment ? initialInvestment.currentValue.toString() : '');
+  const [sipAmount, setSipAmount] = useState(initialInvestment?.sipAmount ? initialInvestment.sipAmount.toString() : '');
+  const [sipDay, setSipDay] = useState(initialInvestment?.sipDay ? initialInvestment.sipDay.toString() : '');
+  const [platform, setPlatform] = useState(initialInvestment ? (initialInvestment.platform || '') : 'Zerodha');
+  const [notes, setNotes] = useState(initialInvestment?.notes || '');
 
   // Unit calculator (Stocks, Mutual Funds, Gold)
   const [useUnitCalc, setUseUnitCalc] = useState(false);
@@ -49,48 +53,6 @@ export const InvestmentModal: React.FC<InvestmentModalProps> = ({
   const [currentPrice, setCurrentPrice] = useState('');
   const [formError, setFormError] = useState<string | null>(null);
   const { isSubmitting, startSubmit, reset } = useSubmitOnce();
-  const prevIsOpenRef = useRef(false);
-
-  useEffect(() => {
-    if (!isOpen) {
-      prevIsOpenRef.current = false;
-      return;
-    }
-    const isOpening = isOpen && !prevIsOpenRef.current;
-    if (isOpening) {
-      reset();
-    }
-    if (initialInvestment) {
-      setName(initialInvestment.name);
-      setType(initialInvestment.type);
-      setInvestedAmount(initialInvestment.investedAmount.toString());
-      setCurrentValue(initialInvestment.currentValue.toString());
-      setSipAmount(initialInvestment.sipAmount ? initialInvestment.sipAmount.toString() : '');
-      setSipDay(initialInvestment.sipDay ? initialInvestment.sipDay.toString() : '');
-      setPlatform(initialInvestment.platform || '');
-      setNotes(initialInvestment.notes || '');
-      setUseUnitCalc(false);
-      setQuantity('');
-      setBuyPrice('');
-      setCurrentPrice('');
-      setFormError(null);
-    } else {
-      setName('');
-      setType('Mutual Funds');
-      setInvestedAmount('');
-      setCurrentValue('');
-      setSipAmount('');
-      setSipDay('');
-      setPlatform('Zerodha');
-      setNotes('');
-      setUseUnitCalc(false);
-      setQuantity('');
-      setBuyPrice('');
-      setCurrentPrice('');
-      setFormError(null);
-    }
-    prevIsOpenRef.current = isOpen;
-  }, [initialInvestment, isOpen, reset]);
 
   const handleQuantityChange = (val: string) => {
     setQuantity(val);
@@ -234,14 +196,7 @@ export const InvestmentModal: React.FC<InvestmentModalProps> = ({
   const parsedVal = parseFloat(currentValue) || 0;
 
   return (
-    <Modal
-      isOpen={isOpen}
-      onClose={onClose}
-      title={initialInvestment ? 'Update Investment Holding' : 'Add New Investment'}
-      subtitle="Log asset valuations across Indian equities, mutual funds, gold, and fixed income"
-      maxWidth="xl"
-    >
-      <form onSubmit={handleSubmit} className="space-y-4">
+    <form onSubmit={handleSubmit} className="space-y-4">
         {/* Name & Asset Class */}
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
           <div>
@@ -387,7 +342,7 @@ export const InvestmentModal: React.FC<InvestmentModalProps> = ({
           </div>
         </div>
         {parsedVal > 0 && (
-          <p className="text-xs text-emerald-800 dark:text-emerald-300 font-semibold italic">
+          <p className="text-xs text-emerald-600 dark:text-emerald-400 font-medium italic">
             Current Valuation: {numberToWordsINR(parsedVal)}
           </p>
         )}
@@ -475,6 +430,28 @@ export const InvestmentModal: React.FC<InvestmentModalProps> = ({
           </button>
         </div>
       </form>
+  );
+};
+
+export const InvestmentModal: React.FC<InvestmentModalProps> = ({
+  isOpen,
+  onClose,
+  initialInvestment,
+}) => {
+  return (
+    <Modal
+      isOpen={isOpen}
+      onClose={onClose}
+      title={initialInvestment ? 'Edit Investment Holding' : 'Add Investment Holding'}
+      maxWidth="xl"
+    >
+      {isOpen && (
+        <InvestmentForm
+          key={initialInvestment?.id || 'new'}
+          initialInvestment={initialInvestment}
+          onClose={onClose}
+        />
+      )}
     </Modal>
   );
 };

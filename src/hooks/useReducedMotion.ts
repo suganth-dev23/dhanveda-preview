@@ -10,14 +10,14 @@ export function getPrefersReducedMotion(): boolean {
 
   // 1. Check DOM attribute override on <html> or <body>
   const motionAttr = document.documentElement.dataset.motion || document.body?.dataset.motion;
-  if (motionAttr === 'on' || motionAttr === 'standard') return false;
   if (motionAttr === 'off' || motionAttr === 'reduced') return true;
+  if (motionAttr === 'on' || motionAttr === 'standard') return false;
 
   // 2. Check local storage override if present
   try {
     const stored = localStorage.getItem('dhanveda_motion');
-    if (stored === 'on') return false;
     if (stored === 'off') return true;
+    if (stored === 'on') return false;
   } catch {
     // Ignore localStorage access failures in restricted iframes
   }

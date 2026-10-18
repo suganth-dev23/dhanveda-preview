@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import { Modal } from '../common/Modal';
 import { Category, PaymentMethod } from '../../types/finance';
 import {
@@ -39,13 +39,18 @@ const PAYMENT_METHODS: PaymentMethod[] = [
 // ReDoS detection regex for dangerous nested or overlapping quantifiers: e.g. (a+)+, (.*)*, (a|b)+
 const DANGEROUS_REDOS_PATTERN = /(?:[+*]\s*[+*])|\((?:[^()]*[+*][^()]*)\)[+*]|\((?:[^()|]*\|[^()|]*)\)[+*]/;
 
-export const AutoRuleManagerModal: React.FC<AutoRuleManagerModalProps> = ({
-  isOpen,
+interface AutoRuleManagerContentProps {
+  onClose: () => void;
+  categories: Category[];
+  onRulesUpdated?: () => void;
+}
+
+const AutoRuleManagerContent: React.FC<AutoRuleManagerContentProps> = ({
   onClose,
   categories,
   onRulesUpdated,
 }) => {
-  const [rules, setRules] = useState<AutoRule[]>([]);
+  const [rules, setRules] = useState<AutoRule[]>(() => getCustomAutoRules());
   const [patternType, setPatternType] = useState<'keywords' | 'regex'>('keywords');
   const [pattern, setPattern] = useState('');
   const [category, setCategory] = useState<string>(categories[0]?.name || 'Food & Dining');
@@ -56,21 +61,6 @@ export const AutoRuleManagerModal: React.FC<AutoRuleManagerModalProps> = ({
   // Form error and test state
   const [error, setError] = useState<string | null>(null);
   const [testDescription, setTestDescription] = useState('');
-
-  // Load rules on open
-  useEffect(() => {
-    if (isOpen) {
-      const stored = getCustomAutoRules();
-      setRules(stored);
-      setError(null);
-      setPattern('');
-      setRuleName('');
-      setTestDescription('');
-      if (categories.length > 0) {
-        setCategory(prev => (!categories.some(c => c.name === prev) ? categories[0].name : prev));
-      }
-    }
-  }, [isOpen, categories]);
 
   // Validate pattern (ReDoS prevention and regex syntax validation)
   const validatePattern = (
@@ -191,13 +181,7 @@ export const AutoRuleManagerModal: React.FC<AutoRuleManagerModalProps> = ({
     : null;
 
   return (
-    <Modal
-      isOpen={isOpen}
-      onClose={onClose}
-      title="Auto-Categorization Rules"
-      subtitle="Define smart keyword and regex rules to automatically categorize imported transactions"
-    >
-      <div className="space-y-6">
+    <div className="space-y-6">
         {/* Add Rule Form */}
         <form onSubmit={handleAddRule} className="p-4 bg-sunken rounded-2xl border border-line space-y-4">
           <div className="flex items-center justify-between">
@@ -453,6 +437,29 @@ export const AutoRuleManagerModal: React.FC<AutoRuleManagerModalProps> = ({
           </button>
         </div>
       </div>
+  );
+};
+
+export const AutoRuleManagerModal: React.FC<AutoRuleManagerModalProps> = ({
+  isOpen,
+  onClose,
+  categories,
+  onRulesUpdated,
+}) => {
+  return (
+    <Modal
+      isOpen={isOpen}
+      onClose={onClose}
+      title="Auto-Categorization Rules"
+      subtitle="Define smart keyword and regex rules to automatically categorize imported transactions"
+    >
+      {isOpen && (
+        <AutoRuleManagerContent
+          onClose={onClose}
+          categories={categories}
+          onRulesUpdated={onRulesUpdated}
+        />
+      )}
     </Modal>
   );
 };

@@ -21,9 +21,9 @@ export const RecentTransactions: React.FC<RecentTransactionsProps> = ({ onEditTr
   const recentList = useMemo(() => {
     return [...(transactions || [])]
       .sort((a, b) => {
-        const dA = a.date || '';
-        const dB = b.date || '';
-        if (dB !== dA) return dB.localeCompare(dA);
+        const timeA = new Date(a.date).getTime() || 0;
+        const timeB = new Date(b.date).getTime() || 0;
+        if (timeB !== timeA) return timeB - timeA;
         return (b.createdAt || '').localeCompare(a.createdAt || '');
       })
       .slice(0, 6);
@@ -84,9 +84,10 @@ export const RecentTransactions: React.FC<RecentTransactionsProps> = ({ onEditTr
                 } else {
                   const totalSplit = splits.reduce((sum, s) => sum + s.amount, 0);
                   isSplitSettled = splits.every(s => s.settled);
-                  splitBadgeText = `Split (${splits.length}) · ${formatINR(totalSplit)} ${
-                    isSplitSettled ? 'settled' : 'owed'
-                  }`;
+                  const allIOweThem = splits.every(s => s.direction === 'i_owe_them');
+                  isTheyOweMe = !allIOweThem;
+                  const statusLabel = isSplitSettled ? 'settled' : allIOweThem ? 'due' : 'owed';
+                  splitBadgeText = `Split (${splits.length}) · ${formatINR(totalSplit)} ${statusLabel}`;
                   splitTooltip = splits
                     .map(
                       s =>

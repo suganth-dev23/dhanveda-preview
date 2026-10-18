@@ -35,7 +35,12 @@ const PROVIDER_METADATA: Record<
   },
 };
 
-export const AIKeyModal: React.FC<AIKeyModalProps> = ({ isOpen, onClose, onSuccess }) => {
+interface AIKeyFormProps {
+  onClose: () => void;
+  onSuccess?: () => void;
+}
+
+const AIKeyForm: React.FC<AIKeyFormProps> = ({ onClose, onSuccess }) => {
   const { aiSettings, updateAISettings } = useFinance();
   const { showToast } = useToast();
 
@@ -43,27 +48,6 @@ export const AIKeyModal: React.FC<AIKeyModalProps> = ({ isOpen, onClose, onSucce
   const [apiKey, setApiKey] = useState(aiSettings.apiKey || '');
   const [showKey, setShowKey] = useState(false);
   const [error, setError] = useState<string | null>(null);
-
-  useEffect(() => {
-    if (isOpen) {
-      setProvider(aiSettings.provider || 'gemini');
-      setApiKey(aiSettings.apiKey || '');
-      setShowKey(false);
-      setError(null);
-    }
-  }, [isOpen, aiSettings]);
-
-  useEffect(() => {
-    const handleKeyDown = (e: KeyboardEvent) => {
-      if (e.key === 'Escape' && isOpen) {
-        onClose();
-      }
-    };
-    window.addEventListener('keydown', handleKeyDown);
-    return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [isOpen, onClose]);
-
-  if (!isOpen) return null;
 
   const activeMeta = PROVIDER_METADATA[provider];
 
@@ -90,41 +74,7 @@ export const AIKeyModal: React.FC<AIKeyModalProps> = ({ isOpen, onClose, onSucce
   };
 
   return (
-    <div
-      className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/60 backdrop-blur-xs animate-fade-in"
-      role="dialog"
-      aria-modal="true"
-      aria-labelledby="ai-key-modal-title"
-    >
-      <div
-        className="w-full max-w-lg bg-surface rounded-2xl border border-line shadow-2xl overflow-hidden flex flex-col max-h-[90vh]"
-        onClick={e => e.stopPropagation()}
-      >
-        {/* Modal Header */}
-        <div className="flex items-center justify-between p-5 border-b border-line">
-          <div className="flex items-center gap-2.5">
-            <div className="w-8 h-8 rounded-xl bg-primary-tint text-primary flex items-center justify-center">
-              <Sparkles className="w-4 h-4 stroke-[2.5]" />
-            </div>
-            <div>
-              <h3 id="ai-key-modal-title" className="text-base font-bold text-ink-1">
-                Configure AI Intelligence
-              </h3>
-              <p className="text-xs text-ink-3">Private Client-Side Intelligence Engine</p>
-            </div>
-          </div>
-          <button
-            type="button"
-            onClick={onClose}
-            className="p-1.5 rounded-xl text-ink-3 hover:text-ink-1 hover:bg-sunken transition-colors"
-            aria-label="Close modal"
-          >
-            <X className="w-4 h-4" />
-          </button>
-        </div>
-
-        {/* Modal Form */}
-        <form onSubmit={handleSave} className="p-5 overflow-y-auto space-y-4">
+    <form onSubmit={handleSave} className="p-5 overflow-y-auto space-y-4">
           {error && (
             <div className="p-3 text-xs bg-rose-500/10 border border-rose-500/20 rounded-xl text-rose-600 dark:text-rose-400 font-medium">
               {error}
@@ -244,6 +194,57 @@ export const AIKeyModal: React.FC<AIKeyModalProps> = ({ isOpen, onClose, onSucce
             </button>
           </div>
         </form>
+  );
+};
+
+export const AIKeyModal: React.FC<AIKeyModalProps> = ({ isOpen, onClose, onSuccess }) => {
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape' && isOpen) {
+        onClose();
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [isOpen, onClose]);
+
+  if (!isOpen) return null;
+
+  return (
+    <div
+      className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/60 backdrop-blur-xs animate-fade-in"
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="ai-key-modal-title"
+    >
+      <div
+        className="w-full max-w-lg bg-surface rounded-2xl border border-line shadow-2xl overflow-hidden flex flex-col max-h-[90vh]"
+        onClick={e => e.stopPropagation()}
+      >
+        {/* Modal Header */}
+        <div className="flex items-center justify-between p-5 border-b border-line">
+          <div className="flex items-center gap-2.5">
+            <div className="w-8 h-8 rounded-xl bg-primary-tint text-primary flex items-center justify-center">
+              <Sparkles className="w-4 h-4 stroke-[2.5]" />
+            </div>
+            <div>
+              <h3 id="ai-key-modal-title" className="text-base font-bold text-ink-1">
+                Configure AI Intelligence
+              </h3>
+              <p className="text-xs text-ink-3">Private Client-Side Intelligence Engine</p>
+            </div>
+          </div>
+          <button
+            type="button"
+            onClick={onClose}
+            className="p-1.5 rounded-xl text-ink-3 hover:text-ink-1 hover:bg-sunken transition-colors"
+            aria-label="Close modal"
+          >
+            <X className="w-4 h-4" />
+          </button>
+        </div>
+
+        <AIKeyForm key={isOpen ? 'open' : 'closed'} onClose={onClose} onSuccess={onSuccess} />
       </div>
     </div>
   );

@@ -212,15 +212,21 @@ export const TransactionListView: React.FC<TransactionListViewProps> = React.mem
 
   // Highlight newly added transaction
   const [highlightedTxId, setHighlightedTxId] = useState<string | null>(null);
-  const [deletingTxIds] = useState<Set<string>>(() => new Set());
+  const [deletingTxIds, setDeletingTxIds] = useState<Set<string>>(new Set());
   const [selectedTxIds, setSelectedTxIds] = useState<Set<string>>(new Set());
 
   const handleDeleteTransaction = useCallback((txId: string, desc: string) => {
     const txToDelete = transactions.find(t => t.id === txId);
     if (!txToDelete) return;
     if (window.confirm(`Delete transaction "${desc}"?`)) {
+      setDeletingTxIds(prev => new Set(prev).add(txId));
       const snapshot = captureDeleteSnapshot(txId);
       deleteTransaction(txId);
+      setDeletingTxIds(prev => {
+        const next = new Set(prev);
+        next.delete(txId);
+        return next;
+      });
       setSelectedTxIds(prev => {
         if (!prev.has(txId)) return prev;
         const next = new Set(prev);
@@ -301,7 +307,9 @@ export const TransactionListView: React.FC<TransactionListViewProps> = React.mem
         const matchesPerson = tx.person?.toLowerCase().includes(searchLower);
         const matchesCat = tx.category.toLowerCase().includes(searchLower);
         const matchesRef = tx.referenceId?.toLowerCase().includes(searchLower);
-        const matchesAmount = tx.amount.toString().includes(searchLower);
+        const cleanedSearch = searchLower.replace(/[^0-9.]/g, '');
+        const matchesAmount = tx.amount.toString().includes(searchLower) ||
+          (cleanedSearch.length > 0 && tx.amount.toString().includes(cleanedSearch));
         const matchesSplits = tx.splitWith?.some(s => {
           const contactName = s.contactId ? contactMap.get(s.contactId)?.name : s.label;
           return (
@@ -355,9 +363,15 @@ export const TransactionListView: React.FC<TransactionListViewProps> = React.mem
         const lastMonthKey = `${lastMonthDate.getFullYear()}-${String(lastMonthDate.getMonth() + 1).padStart(2, '0')}`;
         if (!tx.date || !tx.date.startsWith(lastMonthKey)) return false;
       } else if (dateRange === 'last_3_months') {
-        const threeMonthsAgo = new Date(currentYear, currentMonth - 2, 1);
-        const txDate = new Date(tx.date || '');
-        if (isNaN(txDate.getTime()) || txDate < threeMonthsAgo) return false;
+        let startM = currentMonth - 2;
+        let startY = currentYear;
+        if (startM < 0) {
+          startM += 12;
+          startY -= 1;
+        }
+        const threeMonthsAgoKey = `${startY}-${String(startM + 1).padStart(2, '0')}-01`;
+        const currentMonthEndKey = `${currentYear}-${String(currentMonth + 1).padStart(2, '0')}-31`;
+        if (!tx.date || tx.date < threeMonthsAgoKey || tx.date > currentMonthEndKey) return false;
       } else if (dateRange === 'custom') {
         if (customStartDate && (!tx.date || tx.date < customStartDate)) return false;
         if (customEndDate && (!tx.date || tx.date > customEndDate)) return false;
@@ -390,11 +404,10 @@ export const TransactionListView: React.FC<TransactionListViewProps> = React.mem
 
   const filteredNet = filteredIncome - filteredExpense;
 
-  const visibleIds = useMemo(() => new Set(filteredTransactions.map(t => t.id)), [filteredTransactions]);
-
-  // Derive selection bounded to current visible items without cascading effects
-  const activeSelectedTxIds = useMemo(() => {
+  // Derive visible selection so hidden transactions are never targeted or counted
+  const visibleSelectedTxIds = useMemo(() => {
     if (selectedTxIds.size === 0) return selectedTxIds;
+    const visibleIds = new Set(filteredTransactions.map(t => t.id));
     const next = new Set<string>();
     selectedTxIds.forEach(id => {
       if (visibleIds.has(id)) {
@@ -402,7 +415,7 @@ export const TransactionListView: React.FC<TransactionListViewProps> = React.mem
       }
     });
     return next;
-  }, [selectedTxIds, visibleIds]);
+  }, [selectedTxIds, filteredTransactions]);
 
   // Selection toggle callbacks (memoized)
   const toggleSelectAll = useCallback(() => {
@@ -433,16 +446,19 @@ export const TransactionListView: React.FC<TransactionListViewProps> = React.mem
 
   const handleBulkDelete = useCallback(() => {
     // Only target selected transactions that match current filter/view
-    const targetTxs = transactions.filter(t => activeSelectedTxIds.has(t.id));
+    const visibleIds = new Set(filteredTransactions.map(t => t.id));
+    const targetTxs = transactions.filter(t => selectedTxIds.has(t.id) && visibleIds.has(t.id));
     if (targetTxs.length === 0) return;
     const targetIds = targetTxs.map(t => t.id);
 
     if (window.confirm(`Are you sure you want to delete ${targetIds.length} transaction${targetIds.length > 1 ? 's' : ''}?`)) {
+      setDeletingTxIds(new Set(targetIds));
       const snapshots = targetIds
         .map(id => captureDeleteSnapshot(id))
         .filter((s): s is NonNullable<typeof s> => s !== null);
 
       deleteMultipleTransactions(targetIds);
+      setDeletingTxIds(new Set());
       setSelectedTxIds(prev => {
         const next = new Set(prev);
         targetIds.forEach(id => next.delete(id));
@@ -464,7 +480,7 @@ export const TransactionListView: React.FC<TransactionListViewProps> = React.mem
         }
       );
     }
-  }, [transactions, activeSelectedTxIds, captureDeleteSnapshot, deleteMultipleTransactions, restoreTransactions, showToast, setSelectedTxIds]);
+  }, [filteredTransactions, transactions, selectedTxIds, captureDeleteSnapshot, deleteMultipleTransactions, restoreTransactions, showToast, setSelectedTxIds]);
 
   const exportToCSV = useCallback(() => {
     if (filteredTransactions.length === 0) {
@@ -897,11 +913,11 @@ export const TransactionListView: React.FC<TransactionListViewProps> = React.mem
       </Card>
 
       {/* Bulk Action Bar when items selected */}
-      {activeSelectedTxIds.size > 0 && (
+      {visibleSelectedTxIds.size > 0 && (
         <Card variant="surface" padding="md" className="rounded-2xl flex items-center justify-between border-line shadow-xl shadow-black/10 transition-colors duration-200">
           <div className="flex items-center gap-3">
             <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-bold bg-primary-tint text-reward border border-primary/20">
-              {activeSelectedTxIds.size} transaction{activeSelectedTxIds.size > 1 ? 's' : ''} selected
+              {visibleSelectedTxIds.size} transaction{visibleSelectedTxIds.size > 1 ? 's' : ''} selected
             </span>
           </div>
 
@@ -967,7 +983,7 @@ export const TransactionListView: React.FC<TransactionListViewProps> = React.mem
                 group={group}
                 groupBy={groupBy}
                 isDesktop={isDesktop}
-                selectedTxIds={activeSelectedTxIds}
+                selectedTxIds={visibleSelectedTxIds}
                 highlightedTxId={highlightedTxId}
                 deletingTxIds={deletingTxIds}
                 categoryMap={categoryMap}

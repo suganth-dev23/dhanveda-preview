@@ -33,7 +33,7 @@ export const BudgetsView: React.FC = () => {
   }, [budgets, categorySpendingThisMonth]);
 
   const remainingBudget = totalBudgeted - totalSpentInBudgeted;
-  const overallPercent = totalBudgeted > 0 ? Math.min(100, Math.round((totalSpentInBudgeted / totalBudgeted) * 100)) : 0;
+  const overallPercent = totalBudgeted > 0 ? Math.round((totalSpentInBudgeted / totalBudgeted) * 100) : 0;
   const isOverTotal = remainingBudget < 0;
 
   // Spending velocity and pacing calculations with strict Day 1 division-by-zero protection
@@ -119,6 +119,7 @@ export const BudgetsView: React.FC = () => {
             max={totalBudgeted}
             tone="auto"
             size="md"
+            showMilestones={true}
           />
         </div>
 
@@ -219,12 +220,12 @@ export const BudgetsView: React.FC = () => {
                 <Card
                   variant="surface"
                   padding="none"
-                  className={`group lift rounded-2xl p-4 sm:p-5 transition-[transform,box-shadow,background-color] duration-200 ${
+                  className={`group lift rounded-2xl p-4 sm:p-5 transition-[transform,box-shadow,border-color,background-color] duration-200 ease-out hover:-translate-y-1 hover:shadow-lg active:translate-y-0 active:scale-[0.99] ${
                     isOver
-                      ? 'border-rose-400 dark:border-rose-600/70 ring-2 ring-rose-500/30 animate-shake-then-flash'
+                      ? 'border-rose-400 dark:border-rose-600/70 ring-2 ring-rose-500/30 hover:border-rose-500 hover:shadow-rose-500/10 animate-shake-then-flash'
                       : isNear
-                      ? 'border-warning/30 dark:border-warning/30'
-                      : 'border-line hover:border-emerald-500/40 hover:shadow-md'
+                      ? 'border-amber-400/50 dark:border-amber-500/40 hover:border-amber-500 hover:shadow-amber-500/10'
+                      : 'border-line hover:border-emerald-500/60 hover:shadow-emerald-500/10 dark:hover:border-emerald-400/50'
                   }`}
                 >
                   <div className="flex items-start justify-between">

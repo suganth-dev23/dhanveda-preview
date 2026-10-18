@@ -30,14 +30,20 @@ export const HealthGauge: React.FC = () => {
    ? Math.max(0, ARC_LENGTH - (ARC_LENGTH * clampedScore) / 100)
    : ARC_LENGTH;
 
+ const [isMounted, setIsMounted] = React.useState(false);
+ React.useEffect(() => {
+   const id = requestAnimationFrame(() => setIsMounted(true));
+   return () => cancelAnimationFrame(id);
+ }, []);
+
  const statusColor =
  grade === 'Excellent'
  ? 'text-reward bg-amber-500/10 border-amber-500/20'
  : grade === 'Good'
- ? 'text-emerald-700 dark:text-emerald-300 bg-emerald-500/10 border-emerald-500/20'
+ ? 'text-emerald-600 dark:text-emerald-400 bg-emerald-500/10 border-emerald-500/20'
  : grade === 'Fair'
- ? 'text-amber-700 dark:text-amber-300 bg-amber-500/10 border-amber-500/20'
- : 'text-rose-700 dark:text-rose-300 bg-rose-500/10 border-rose-500/20';
+ ? 'text-amber-600 dark:text-amber-400 bg-amber-500/10 border-amber-500/20'
+ : 'text-rose-600 dark:text-rose-400 bg-rose-500/10 border-rose-500/20';
 
  const statusLabel =
  grade === 'Excellent'
@@ -132,6 +138,9 @@ export const HealthGauge: React.FC = () => {
  <stop offset="70%" stopColor="#10B981" />
  <stop offset="100%" stopColor="#F5B742" />
  </linearGradient>
+ <filter id="beadBloom" x="-50%" y="-50%" width="200%" height="200%">
+ <feDropShadow dx="0" dy="0" stdDeviation="3" floodColor="#F5B742" floodOpacity="0.9" />
+ </filter>
  </defs>
 
  {/* Background Track Arc */}
@@ -156,14 +165,19 @@ export const HealthGauge: React.FC = () => {
  opacity={clampedScore > 0 ? 1 : 0}
  />
 
- {/* Glowing Endpoint Indicator Bead on the Arc Track */}
- {(() => {
+ {/* Glowing Endpoint Indicator Bead on the Arc Track with soft luminous bloom */}
+ {clampedScore > 0 && (() => {
  const safeFraction = Number.isFinite(clampedScore) ? clampedScore / 100 : 0;
  const rad = Math.PI * (1 - safeFraction);
  const indX = Number.isFinite(120 + 85 * Math.cos(rad)) ? Number((120 + 85 * Math.cos(rad)).toFixed(2)) : 35;
  const indY = Number.isFinite(120 - 85 * Math.sin(rad)) ? Number((120 - 85 * Math.sin(rad)).toFixed(2)) : 120;
  return (
- <g transform={`translate(${indX}, ${indY})`}>
+ <g
+ transform={`translate(${indX}, ${indY})`}
+ filter="url(#beadBloom)"
+ style={{ filter: 'drop-shadow(0 0 6px #F5B742)' }}
+ className="transition-opacity duration-300"
+ >
  <circle
  cx="0"
  cy="0"
@@ -187,9 +201,9 @@ export const HealthGauge: React.FC = () => {
  <div className="flex items-baseline gap-1">
  <span className={`font-numeric text-3xl sm:text-4xl font-black ${
  grade === 'Needs Attention'
- ? 'text-rose-700 dark:text-rose-300'
+ ? 'text-rose-600 dark:text-rose-400'
  : grade === 'Fair'
- ? 'text-amber-700 dark:text-amber-300'
+ ? 'text-amber-600 dark:text-amber-400'
  : 'text-ink-1'
  }`}>
  <AnimatedNumber
@@ -226,7 +240,7 @@ export const HealthGauge: React.FC = () => {
 
  {/* Right: 5 Pillar breakdown */}
  <div className="lg:col-span-7 space-y-2.5">
- {pillars.map(pillar => {
+ {pillars.map((pillar, idx) => {
  const safePillarScore = Number.isFinite(pillar.score) ? pillar.score : 0;
  const safeMax = Number.isFinite(pillar.max) && pillar.max > 0 ? pillar.max : 1;
  const pct = Math.max(0, Math.min(100, Math.round((safePillarScore / safeMax) * 100)));
@@ -248,7 +262,7 @@ export const HealthGauge: React.FC = () => {
  </div>
 
  <div
- className="h-1.5 w-full bg-sunken rounded-full overflow-hidden"
+ className="h-1.5 w-full bg-sunken rounded-full overflow-hidden relative"
  role="progressbar"
  aria-valuenow={pillar.score}
  aria-valuemin={0}
@@ -256,9 +270,14 @@ export const HealthGauge: React.FC = () => {
  aria-label={`${pillar.label} score: ${pillar.score} out of ${pillar.max}`}
  >
  <div
- className={`h-full rounded-full transition-[width] duration-700 ease-out ${pillar.color}`}
- style={{ width: `${pct}%` }}
- />
+ className={`h-full rounded-full transition-[width] duration-[450ms] ease-[cubic-bezier(0.16,1,0.3,1)] will-change-[width] relative overflow-hidden ${pillar.color}`}
+ style={{
+ width: isMounted ? `${pct}%` : '0%',
+ transitionDelay: `${idx * 45}ms`,
+ }}
+ >
+ <div className="absolute inset-0 bg-gradient-to-b from-white/25 to-transparent pointer-events-none rounded-full" />
+ </div>
  </div>
  </div>
  );

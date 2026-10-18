@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState } from 'react';
 import { CheckCircle2, Receipt } from 'lucide-react';
 import { Modal } from '../common/Modal';
 import { RecurringPayment, PaymentMethod } from '../../types/finance';
@@ -23,6 +23,20 @@ interface MarkPaidModalProps {
   ) => void;
 }
 
+interface MarkPaidFormProps {
+  payment: RecurringPayment;
+  targetDueDate: string;
+  onClose: () => void;
+  onConfirm: (
+    paymentId: string,
+    dueDate: string,
+    actualAmount: number,
+    createTransaction: boolean,
+    paymentMethod?: PaymentMethod,
+    paidDate?: string
+  ) => void;
+}
+
 const PAYMENT_METHODS: PaymentMethod[] = [
   'UPI',
   'Credit Card',
@@ -35,39 +49,17 @@ const PAYMENT_METHODS: PaymentMethod[] = [
   'Other',
 ];
 
-export const MarkPaidModal: React.FC<MarkPaidModalProps> = ({
-  isOpen,
-  onClose,
+const MarkPaidForm: React.FC<MarkPaidFormProps> = ({
   payment,
   targetDueDate,
+  onClose,
   onConfirm,
 }) => {
-  const [amountStr, setAmountStr] = useState<string>('');
-  const [recordInLedger, setRecordInLedger] = useState<boolean>(true);
-  const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>('UPI');
+  const [amountStr, setAmountStr] = useState<string>(payment.amount.toString());
+  const [recordInLedger, setRecordInLedger] = useState<boolean>(Boolean(payment.autoLogTransaction));
+  const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>(payment.paymentMethod || 'UPI');
   const [paidDate, setPaidDate] = useState<string>(getTodayString());
   const { isSubmitting, startSubmit, reset } = useSubmitOnce();
-  const prevIsOpenRef = useRef(false);
-
-  useEffect(() => {
-    if (!isOpen) {
-      prevIsOpenRef.current = false;
-      return;
-    }
-    const isOpening = isOpen && !prevIsOpenRef.current;
-    if (isOpening) {
-      reset();
-    }
-    if (payment) {
-      setAmountStr(payment.amount.toString());
-      setRecordInLedger(Boolean(payment.autoLogTransaction));
-      setPaymentMethod(payment.paymentMethod || 'UPI');
-      setPaidDate(getTodayString());
-    }
-    prevIsOpenRef.current = isOpen;
-  }, [payment, targetDueDate, isOpen, reset]);
-
-  if (!payment) return null;
 
   const parsedAmount = parseFloat(amountStr) || 0;
 
@@ -93,14 +85,7 @@ export const MarkPaidModal: React.FC<MarkPaidModalProps> = ({
   };
 
   return (
-    <Modal
-      isOpen={isOpen}
-      onClose={onClose}
-      title="Mark Payment as Paid"
-      subtitle={`Record payment for ${payment.name} — Due ${formatDate(targetDueDate)}`}
-      maxWidth="md"
-    >
-      <form onSubmit={handleSubmit} className="space-y-4">
+    <form onSubmit={handleSubmit} className="space-y-4">
         {/* Commitment Summary Card */}
         <div className="rounded-xl border border-line bg-sunken p-4">
           <div className="flex items-center justify-between">
@@ -241,6 +226,35 @@ export const MarkPaidModal: React.FC<MarkPaidModalProps> = ({
           </button>
         </div>
       </form>
+  );
+};
+
+export const MarkPaidModal: React.FC<MarkPaidModalProps> = ({
+  isOpen,
+  onClose,
+  payment,
+  targetDueDate,
+  onConfirm,
+}) => {
+  if (!payment) return null;
+
+  return (
+    <Modal
+      isOpen={isOpen}
+      onClose={onClose}
+      title="Mark Payment as Paid"
+      subtitle={`Record payment for ${payment.name} — Due ${formatDate(targetDueDate)}`}
+      maxWidth="md"
+    >
+      {isOpen && (
+        <MarkPaidForm
+          key={`${payment.id}-${targetDueDate}`}
+          payment={payment}
+          targetDueDate={targetDueDate}
+          onClose={onClose}
+          onConfirm={onConfirm}
+        />
+      )}
     </Modal>
   );
 };

@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo, useRef } from 'react';
+import React, { useState, useMemo } from 'react';
 import { Modal } from '../common/Modal';
 import { useFinance } from '../../context/FinanceContext';
 import { Budget } from '../../types/finance';
@@ -12,45 +12,34 @@ interface BudgetModalProps {
   initialBudget?: Budget | null;
 }
 
+interface BudgetFormProps {
+  initialBudget?: Budget | null;
+  onClose: () => void;
+}
+
 const PRESET_LIMITS = [3000, 5000, 8000, 10000, 15000, 20000, 25000, 50000];
 
-export const BudgetModal: React.FC<BudgetModalProps> = ({
-  isOpen,
-  onClose,
+const BudgetForm: React.FC<BudgetFormProps> = ({
   initialBudget,
+  onClose,
 }) => {
   const { categories, budgets, setBudgetForCategory } = useFinance();
-  const [selectedCategory, setSelectedCategory] = useState<string>('Food & Dining');
-  const [limitAmount, setLimitAmount] = useState<string>('10000');
-  const [errorMessage, setErrorMessage] = useState<string | null>(null);
-  const { isSubmitting, startSubmit, reset } = useSubmitOnce();
-  const prevIsOpenRef = useRef(false);
 
   // Set of category names that already have an active budget
   const existingBudgetCategories = useMemo(() => {
     return new Set(budgets.map(b => b.category.toLowerCase()));
   }, [budgets]);
 
-  useEffect(() => {
-    if (!isOpen) {
-      prevIsOpenRef.current = false;
-      return;
-    }
-    const isOpening = isOpen && !prevIsOpenRef.current;
-    if (isOpening) {
-      reset();
-    }
-    setErrorMessage(null);
-    if (initialBudget) {
-      setSelectedCategory(initialBudget.category);
-      setLimitAmount(initialBudget.monthlyLimit.toString());
-    } else {
-      const unbudgeted = categories.find(c => !existingBudgetCategories.has(c.name.toLowerCase()));
-      setSelectedCategory(unbudgeted ? unbudgeted.name : (categories[0]?.name || 'Food & Dining'));
-      setLimitAmount('10000');
-    }
-    prevIsOpenRef.current = isOpen;
-  }, [initialBudget, isOpen, categories, existingBudgetCategories, reset]);
+  const defaultCategory = useMemo(() => {
+    if (initialBudget) return initialBudget.category;
+    const unbudgeted = categories.find(c => !existingBudgetCategories.has(c.name.toLowerCase()));
+    return unbudgeted ? unbudgeted.name : (categories[0]?.name || 'Food & Dining');
+  }, [initialBudget, categories, existingBudgetCategories]);
+
+  const [selectedCategory, setSelectedCategory] = useState<string>(defaultCategory);
+  const [limitAmount, setLimitAmount] = useState<string>(initialBudget ? initialBudget.monthlyLimit.toString() : '10000');
+  const [errorMessage, setErrorMessage] = useState<string | null>(null);
+  const { isSubmitting, startSubmit, reset } = useSubmitOnce();
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -83,13 +72,7 @@ export const BudgetModal: React.FC<BudgetModalProps> = ({
   const parsedLimit = parseFloat(limitAmount) || 0;
 
   return (
-    <Modal
-      isOpen={isOpen}
-      onClose={onClose}
-      title={initialBudget ? 'Update Monthly Budget' : 'Set Category Budget'}
-      subtitle="Establish a spending limit to keep your monthly cash flow disciplined"
-    >
-      <form onSubmit={handleSubmit} className="space-y-4">
+    <form onSubmit={handleSubmit} className="space-y-4">
         {errorMessage && (
           <div className="p-3 bg-rose-50 dark:bg-rose-950/40 border border-rose-200 dark:border-rose-900/40 rounded-xl text-xs text-rose-700 dark:text-rose-300 font-medium flex items-center gap-2">
             <span>⚠️</span>
@@ -196,6 +179,28 @@ export const BudgetModal: React.FC<BudgetModalProps> = ({
           </button>
         </div>
       </form>
+  );
+};
+
+export const BudgetModal: React.FC<BudgetModalProps> = ({
+  isOpen,
+  onClose,
+  initialBudget,
+}) => {
+  return (
+    <Modal
+      isOpen={isOpen}
+      onClose={onClose}
+      title={initialBudget ? 'Update Monthly Budget' : 'Set Category Budget'}
+      subtitle="Establish a spending limit to keep your monthly cash flow disciplined"
+    >
+      {isOpen && (
+        <BudgetForm
+          key={initialBudget?.id || 'new'}
+          initialBudget={initialBudget}
+          onClose={onClose}
+        />
+      )}
     </Modal>
   );
 };

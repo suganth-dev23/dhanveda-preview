@@ -7,6 +7,88 @@ import { useStaggerChildren } from '../../hooks/useStaggerChildren';
 import { EmergencyContributionModal } from './EmergencyContributionModal';
 import { Button, Card, Money, Stat, Progress } from '../ui';
 
+interface EmergencyFundSettingsProps {
+  initialTargetMonths: number;
+  initialManualTarget?: number;
+  onSave: (targetMonths: number, manualTarget?: number) => void;
+  onCancel: () => void;
+}
+
+const EmergencyFundSettings: React.FC<EmergencyFundSettingsProps> = ({
+  initialTargetMonths,
+  initialManualTarget,
+  onSave,
+  onCancel,
+}) => {
+  const [targetMonths, setTargetMonths] = useState(initialTargetMonths);
+  const [manualTarget, setManualTarget] = useState(initialManualTarget ? initialManualTarget.toString() : '');
+
+  const handleSaveSettings = (e: React.FormEvent) => {
+    e.preventDefault();
+    const parsedTarget = manualTarget ? parseFloat(manualTarget) : undefined;
+    onSave(targetMonths, parsedTarget);
+  };
+
+  return (
+    <Card variant="sunken" padding="none" className="mt-6 p-5 rounded-2xl">
+      <form onSubmit={handleSaveSettings} className="space-y-4">
+        <h4 className="text-xs font-bold uppercase tracking-wider text-ink-3 flex items-center gap-1.5">
+          <Sliders className="w-3.5 h-3.5" /> Customize Emergency Target
+        </h4>
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+          <div>
+            <label className="block text-xs font-semibold text-ink-2 mb-1.5">
+              Target Duration (Months of Expenses)
+            </label>
+            <select
+              value={targetMonths}
+              onChange={e => setTargetMonths(parseInt(e.target.value))}
+              className="w-full py-2.5 px-3.5 bg-surface border border-line rounded-xl text-sm text-ink-1 focus:outline-none focus:border-primary"
+            >
+              <option value={3}>3 Months (Aggressive / High Job Security)</option>
+              <option value={6}>6 Months (Standard Recommended)</option>
+              <option value={9}>9 Months (Conservative / Single Earner)</option>
+              <option value={12}>12 Months (Freelancer / Business Owner)</option>
+            </select>
+          </div>
+
+          <div>
+            <label className="block text-xs font-semibold text-ink-2 mb-1.5">
+              Custom Target Amount (INR ₹)
+            </label>
+            <input
+              type="number"
+              inputMode="decimal"
+              value={manualTarget}
+              onChange={e => setManualTarget(e.target.value)}
+              placeholder="e.g. 360000"
+              className="w-full py-2.5 px-3.5 bg-surface border border-line rounded-xl text-sm text-ink-1 font-numeric focus:outline-none focus:border-primary"
+            />
+          </div>
+        </div>
+
+        <div className="flex justify-end gap-2 pt-2">
+          <Button
+            type="button"
+            variant="ghost"
+            size="sm"
+            onClick={onCancel}
+          >
+            Cancel
+          </Button>
+          <Button
+            type="submit"
+            variant="primary"
+            size="sm"
+          >
+            Save Settings
+          </Button>
+        </div>
+      </form>
+    </Card>
+  );
+};
+
 export const EmergencyFundView: React.FC = () => {
   const { containerRef: metricPillarsRef, getChildStyle } = useStaggerChildren(40);
   const {
@@ -17,28 +99,21 @@ export const EmergencyFundView: React.FC = () => {
 
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
-  const [targetMonths, setTargetMonths] = useState(emergencyFund.targetMonths || 6);
-  const [manualTarget, setManualTarget] = useState(emergencyFund.manualTargetAmount ? emergencyFund.manualTargetAmount.toString() : '');
 
-  const effectiveTarget = emergencyFund.manualTargetAmount || 360000;
+  const targetMonthsCount = emergencyFund.targetMonths || 6;
+  const baselineExpense = emergencyFund.monthlyExpenseBaseline || 50000;
+  const effectiveTarget = emergencyFund.manualTargetAmount || (targetMonthsCount * baselineExpense) || 150000;
   const percentFunded = effectiveTarget > 0 ? Math.min(100, Math.round((emergencyFund.currentSaved / effectiveTarget) * 100)) : 0;
   const deficit = Math.max(0, effectiveTarget - emergencyFund.currentSaved);
 
   const formatRunwayMonths = (months: number, saved: number): string => {
-    if (!Number.isFinite(months) || isNaN(months)) {
+    if (!Number.isFinite(months) || isNaN(months) || (months === 0 && saved > 0)) {
       return saved > 0 ? '> 24' : '0.0';
     }
     if (months > 24) {
       return '> 24';
     }
     return months.toFixed(1);
-  };
-
-  const handleSaveSettings = (e: React.FormEvent) => {
-    e.preventDefault();
-    const parsedTarget = manualTarget ? parseFloat(manualTarget) : undefined;
-    updateEmergencySettings(targetMonths, parsedTarget);
-    setIsSettingsOpen(false);
   };
 
   return (
@@ -113,62 +188,15 @@ export const EmergencyFundView: React.FC = () => {
 
         {/* Settings Panel if toggled */}
         {isSettingsOpen && (
-          <Card variant="sunken" padding="none" className="mt-6 p-5 rounded-2xl">
-            <form onSubmit={handleSaveSettings} className="space-y-4">
-              <h4 className="text-xs font-bold uppercase tracking-wider text-ink-3 flex items-center gap-1.5">
-                <Sliders className="w-3.5 h-3.5" /> Customize Emergency Target
-              </h4>
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                <div>
-                  <label className="block text-xs font-semibold text-ink-2 mb-1.5">
-                    Target Duration (Months of Expenses)
-                  </label>
-                  <select
-                    value={targetMonths}
-                    onChange={e => setTargetMonths(parseInt(e.target.value))}
-                    className="w-full py-2.5 px-3.5 bg-surface border border-line rounded-xl text-sm text-ink-1 focus:outline-none focus:border-primary"
-                  >
-                    <option value={3}>3 Months (Aggressive / High Job Security)</option>
-                    <option value={6}>6 Months (Standard Recommended)</option>
-                    <option value={9}>9 Months (Conservative / Single Earner)</option>
-                    <option value={12}>12 Months (Freelancer / Business Owner)</option>
-                  </select>
-                </div>
-
-                <div>
-                  <label className="block text-xs font-semibold text-ink-2 mb-1.5">
-                    Custom Target Amount (INR ₹)
-                  </label>
-                  <input
-                    type="number"
-                    inputMode="decimal"
-                    value={manualTarget}
-                    onChange={e => setManualTarget(e.target.value)}
-                    placeholder="e.g. 360000"
-                    className="w-full py-2.5 px-3.5 bg-surface border border-line rounded-xl text-sm text-ink-1 font-numeric focus:outline-none focus:border-primary"
-                  />
-                </div>
-              </div>
-
-              <div className="flex justify-end gap-2 pt-2">
-                <Button
-                  type="button"
-                  variant="ghost"
-                  size="sm"
-                  onClick={() => setIsSettingsOpen(false)}
-                >
-                  Cancel
-                </Button>
-                <Button
-                  type="submit"
-                  variant="primary"
-                  size="sm"
-                >
-                  Save Settings
-                </Button>
-              </div>
-            </form>
-          </Card>
+          <EmergencyFundSettings
+            initialTargetMonths={emergencyFund.targetMonths || 6}
+            initialManualTarget={emergencyFund.manualTargetAmount}
+            onSave={(months, target) => {
+              updateEmergencySettings(months, target);
+              setIsSettingsOpen(false);
+            }}
+            onCancel={() => setIsSettingsOpen(false)}
+          />
         )}
 
         {/* Progress Track */}

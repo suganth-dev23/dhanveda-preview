@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState } from 'react';
 import { Modal } from '../common/Modal';
 import { useFinance } from '../../context/FinanceContext';
 import { Transaction, SplitEntry, OwedDirection } from '../../types/finance';
@@ -14,8 +14,13 @@ interface EditSplitModalProps {
   splitEntry: SplitEntry | null;
 }
 
-export const EditSplitModal: React.FC<EditSplitModalProps> = ({
-  isOpen,
+interface EditSplitFormProps {
+  onClose: () => void;
+  transaction: Transaction;
+  splitEntry: SplitEntry;
+}
+
+const EditSplitForm: React.FC<EditSplitFormProps> = ({
   onClose,
   transaction,
   splitEntry,
@@ -29,32 +34,11 @@ export const EditSplitModal: React.FC<EditSplitModalProps> = ({
     deleteSettlement,
   } = useFinance();
 
-  const [contactId, setContactId] = useState<string>('');
-  const [direction, setDirection] = useState<OwedDirection>('they_owe_me');
-  const [amount, setAmount] = useState<string>('');
-  const [isSettled, setIsSettled] = useState<boolean>(false);
+  const [contactId, setContactId] = useState<string>(splitEntry.contactId || '');
+  const [direction, setDirection] = useState<OwedDirection>(splitEntry.direction);
+  const [amount, setAmount] = useState<string>(splitEntry.amount.toString());
+  const [isSettled, setIsSettled] = useState<boolean>(splitEntry.settled);
   const { isSubmitting, startSubmit, reset } = useSubmitOnce();
-  const prevIsOpenRef = useRef(false);
-
-  useEffect(() => {
-    if (!isOpen) {
-      prevIsOpenRef.current = false;
-      return;
-    }
-    const isOpening = isOpen && !prevIsOpenRef.current;
-    if (isOpening) {
-      reset();
-    }
-    if (splitEntry && isOpen) {
-      setContactId(splitEntry.contactId || '');
-      setDirection(splitEntry.direction);
-      setAmount(splitEntry.amount.toString());
-      setIsSettled(splitEntry.settled);
-    }
-    prevIsOpenRef.current = isOpen;
-  }, [splitEntry, isOpen, reset]);
-
-  if (!transaction || !splitEntry) return null;
 
   const otherSplitsTotal = roundCurrency(
     (transaction.splitWith || [])
@@ -159,13 +143,7 @@ export const EditSplitModal: React.FC<EditSplitModalProps> = ({
   const yourShare = Math.max(0, roundCurrency(transaction.amount - otherSplitsTotal - parsedAmount));
 
   return (
-    <Modal
-      isOpen={isOpen}
-      onClose={onClose}
-      title="Edit Split / IOU"
-      subtitle={`Transaction: ${transaction.description} (${formatINR(transaction.amount)})`}
-    >
-      <form onSubmit={handleSubmit} className="space-y-4">
+    <form onSubmit={handleSubmit} className="space-y-4">
         {/* Contact Picker */}
         <div>
           <label className="block text-xs font-bold uppercase tracking-wider text-ink-3 mb-1.5">
@@ -289,6 +267,32 @@ export const EditSplitModal: React.FC<EditSplitModalProps> = ({
           </div>
         </div>
       </form>
+  );
+};
+
+export const EditSplitModal: React.FC<EditSplitModalProps> = ({
+  isOpen,
+  onClose,
+  transaction,
+  splitEntry,
+}) => {
+  if (!transaction || !splitEntry) return null;
+
+  return (
+    <Modal
+      isOpen={isOpen}
+      onClose={onClose}
+      title="Edit Split / IOU"
+      subtitle={`Transaction: ${transaction.description} (${formatINR(transaction.amount)})`}
+    >
+      {isOpen && (
+        <EditSplitForm
+          key={`${transaction.id}_${splitEntry.id}`}
+          onClose={onClose}
+          transaction={transaction}
+          splitEntry={splitEntry}
+        />
+      )}
     </Modal>
   );
 };

@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState } from 'react';
 import { Modal } from '../common/Modal';
 import { useFinance } from '../../context/FinanceContext';
 import { Category } from '../../types/finance';
@@ -12,44 +12,23 @@ interface CategoryModalProps {
   initialCategory?: Category | null;
 }
 
-export const CategoryModal: React.FC<CategoryModalProps> = ({
-  isOpen,
-  onClose,
+interface CategoryFormProps {
+  initialCategory?: Category | null;
+  onClose: () => void;
+}
+
+const CategoryForm: React.FC<CategoryFormProps> = ({
   initialCategory,
+  onClose,
 }) => {
   const { categories, addCategory, updateCategory } = useFinance();
 
-  const [name, setName] = useState('');
-  const [icon, setIcon] = useState('Tag');
-  const [color, setColor] = useState('#3b82f6');
-  const [type, setType] = useState<'expense' | 'income' | 'both'>('expense');
+  const [name, setName] = useState(initialCategory?.name || '');
+  const [icon, setIcon] = useState(initialCategory?.icon || 'Tag');
+  const [color, setColor] = useState(initialCategory?.color || '#3b82f6');
+  const [type, setType] = useState<'expense' | 'income' | 'both'>(initialCategory?.type || 'expense');
   const [nameError, setNameError] = useState<string | null>(null);
   const { isSubmitting, startSubmit, reset } = useSubmitOnce();
-  const prevIsOpenRef = useRef(false);
-
-  useEffect(() => {
-    if (!isOpen) {
-      prevIsOpenRef.current = false;
-      return;
-    }
-    const isOpening = isOpen && !prevIsOpenRef.current;
-    if (isOpening) {
-      reset();
-    }
-    if (initialCategory) {
-      setName(initialCategory.name);
-      setIcon(initialCategory.icon);
-      setColor(initialCategory.color);
-      setType(initialCategory.type);
-    } else {
-      setName('');
-      setIcon('Tag');
-      setColor('#3b82f6');
-      setType('expense');
-    }
-    setNameError(null);
-    prevIsOpenRef.current = isOpen;
-  }, [initialCategory, isOpen, reset]);
 
   const handleNameChange = (val: string) => {
     setName(val);
@@ -98,13 +77,7 @@ export const CategoryModal: React.FC<CategoryModalProps> = ({
   };
 
   return (
-    <Modal
-      isOpen={isOpen}
-      onClose={onClose}
-      title={initialCategory ? 'Edit Category' : 'Create Custom Category'}
-      subtitle="Customize category name, theme color, and Lucide icon"
-    >
-      <form onSubmit={handleSubmit} className="space-y-4">
+    <form onSubmit={handleSubmit} className="space-y-4">
         {/* Name */}
         <div>
           <label className="block text-xs font-bold uppercase tracking-wider text-ink-3 mb-1.5">
@@ -251,6 +224,28 @@ export const CategoryModal: React.FC<CategoryModalProps> = ({
           </button>
         </div>
       </form>
+  );
+};
+
+export const CategoryModal: React.FC<CategoryModalProps> = ({
+  isOpen,
+  onClose,
+  initialCategory,
+}) => {
+  return (
+    <Modal
+      isOpen={isOpen}
+      onClose={onClose}
+      title={initialCategory ? 'Edit Category' : 'Create Custom Category'}
+      subtitle="Customize category name, theme color, and Lucide icon"
+    >
+      {isOpen && (
+        <CategoryForm
+          key={initialCategory?.id || 'new'}
+          initialCategory={initialCategory}
+          onClose={onClose}
+        />
+      )}
     </Modal>
   );
 };

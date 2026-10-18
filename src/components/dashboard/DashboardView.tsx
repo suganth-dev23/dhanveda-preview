@@ -9,8 +9,9 @@ import {
 } from 'lucide-react';
 import { useFinance } from '../../context/FinanceContext';
 import { Transaction } from '../../types/finance';
-const CashFlowChart = React.lazy(() => import('./CashFlowChart').then(m => ({ default: m.CashFlowChart })));
-const CategoryExpenseChart = React.lazy(() => import('./CategoryExpenseChart').then(m => ({ default: m.CategoryExpenseChart })));
+import { CashFlowChart } from './CashFlowChart';
+import { CategoryExpenseChart } from './CategoryExpenseChart';
+import { useMediaQuery } from '../../hooks/useMediaQuery';
 import { BudgetHealthWidget } from './BudgetHealthWidget';
 import { RecentTransactions } from './RecentTransactions';
 import { AIInsightsWidget } from './AIInsightsWidget';
@@ -29,6 +30,7 @@ interface DashboardViewProps {
 }
 
 export const DashboardView: React.FC<DashboardViewProps> = ({ onOpenAddTx, onEditTransaction }) => {
+  const isMobile = useMediaQuery('(max-width: 639px)');
   const { containerRef: summaryStripRef, getChildStyle: getSummaryStyle } = useStaggerChildren(50);
   const [mobileTab, setMobileTab] = useState<'overview' | 'commitments'>('overview');
 
@@ -288,7 +290,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({ onOpenAddTx, onEdi
 
       {/* MOBILE CONTENT ACCORDING TO ACTIVE SEGMENT */}
       <div className="sm:hidden space-y-4">
-        {mobileTab === 'overview' && (
+        {isMobile && mobileTab === 'overview' && (
           <>
             <CashFlowChart />
             <CategoryExpenseChart />
@@ -297,7 +299,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({ onOpenAddTx, onEdi
             <RecentTransactions onEditTransaction={onEditTransaction} />
           </>
         )}
-        {mobileTab === 'commitments' && (
+        {isMobile && mobileTab === 'commitments' && (
           <>
             <CashFlowRunwayCard />
             <RecurringBillsCard />
@@ -308,44 +310,46 @@ export const DashboardView: React.FC<DashboardViewProps> = ({ onOpenAddTx, onEdi
       </div>
 
       {/* DESKTOP CONTENT (ALL LEVELS IN COMPREHENSIVE GRID) */}
-      <div className="hidden sm:block space-y-6">
-        {/* LEVEL 2: CASH FLOW VELOCITY & CATEGORY ALLOCATION */}
-        <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
-          <div className="lg:col-span-7">
-            <CashFlowChart />
+      {!isMobile && (
+        <div className="hidden sm:block space-y-6">
+          {/* LEVEL 2: CASH FLOW VELOCITY & CATEGORY ALLOCATION */}
+          <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
+            <div className="lg:col-span-7">
+              <CashFlowChart />
+            </div>
+            <div className="lg:col-span-5">
+              <CategoryExpenseChart />
+            </div>
           </div>
-          <div className="lg:col-span-5">
-            <CategoryExpenseChart />
+
+          {/* FINANCIAL HEALTH INDEX & 5 PILLARS GAUGE */}
+          <div>
+            <HealthGauge />
+          </div>
+
+          {/* LEVEL 3: OPERATIONAL ACTIVITY & BUDGET HEALTH */}
+          <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-stretch">
+            <div className="lg:col-span-7">
+              <RecentTransactions onEditTransaction={onEditTransaction} />
+            </div>
+            <div className="lg:col-span-5">
+              <BudgetHealthWidget />
+            </div>
+          </div>
+
+          {/* LEVEL 4: FINANCIAL COMMITMENTS & OBLIGATIONS */}
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 items-stretch">
+            <CashFlowRunwayCard />
+            <RecurringBillsCard />
+            <OwedSummaryWidget />
+          </div>
+
+          {/* LEVEL 5: AI FINANCIAL HEALTH ASSISTANT */}
+          <div>
+            <AIInsightsWidget />
           </div>
         </div>
-
-        {/* FINANCIAL HEALTH INDEX & 5 PILLARS GAUGE */}
-        <div>
-          <HealthGauge />
-        </div>
-
-        {/* LEVEL 3: OPERATIONAL ACTIVITY & BUDGET HEALTH */}
-        <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-stretch">
-          <div className="lg:col-span-7">
-            <RecentTransactions onEditTransaction={onEditTransaction} />
-          </div>
-          <div className="lg:col-span-5">
-            <BudgetHealthWidget />
-          </div>
-        </div>
-
-        {/* LEVEL 4: FINANCIAL COMMITMENTS & OBLIGATIONS */}
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 items-stretch">
-          <CashFlowRunwayCard />
-          <RecurringBillsCard />
-          <OwedSummaryWidget />
-        </div>
-
-        {/* LEVEL 5: AI FINANCIAL HEALTH ASSISTANT */}
-        <div>
-          <AIInsightsWidget />
-        </div>
-      </div>
+      )}
     </div>
   );
 };

@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo, useRef } from 'react';
+import React, { useState, useMemo } from 'react';
 import { Modal } from '../common/Modal';
 import { useFinance } from '../../context/FinanceContext';
 import { Contact, SettlementRecord, Transaction, TransactionType, OwedDirection } from '../../types/finance';
@@ -17,8 +17,14 @@ interface SettleUpModalProps {
   initialSettlement?: SettlementRecord | null;
 }
 
-export const SettleUpModal: React.FC<SettleUpModalProps> = ({
-  isOpen,
+interface SettleUpFormProps {
+  onClose: () => void;
+  contact: Contact;
+  suggestedAmount?: number;
+  initialSettlement?: SettlementRecord | null;
+}
+
+const SettleUpForm: React.FC<SettleUpFormProps> = ({
   onClose,
   contact,
   suggestedAmount = 0,
@@ -32,50 +38,36 @@ export const SettleUpModal: React.FC<SettleUpModalProps> = ({
     updateSettlement,
   } = useFinance();
 
-  const [amount, setAmount] = useState<string>('');
-  const [date, setDate] = useState<string>(getTodayString());
-  const [note, setNote] = useState<string>('');
-  const [direction, setDirection] = useState<OwedDirection>('they_owe_me');
-  const [selectedTxId, setSelectedTxId] = useState<string | null>(null);
-  const [isLinkingExpanded, setIsLinkingExpanded] = useState<boolean>(false);
-  const [txSearchQuery, setTxSearchQuery] = useState<string>('');
-  const { isSubmitting, startSubmit, reset } = useSubmitOnce();
-  const prevIsOpenRef = useRef(false);
-
   const balanceMap = useMemo(() => {
     return new Map(contactBalances.map(b => [b.contactId, b.netAmount]));
   }, [contactBalances]);
 
-  const contactNet = contact ? balanceMap.get(contact.id) || 0 : 0;
+  const contactNet = balanceMap.get(contact.id) || 0;
 
-  useEffect(() => {
-    if (!isOpen) {
-      prevIsOpenRef.current = false;
-      return;
-    }
-    const isOpening = isOpen && !prevIsOpenRef.current;
-    if (isOpening) {
-      reset();
-    }
-    if (initialSettlement && isOpen) {
-      setAmount(initialSettlement.amount.toString());
-      setDate(initialSettlement.date);
-      setNote(initialSettlement.note || '');
-      setDirection(initialSettlement.direction || (contactNet >= 0 ? 'they_owe_me' : 'i_owe_them'));
-      setSelectedTxId(initialSettlement.linkedTransactionId || null);
-      setIsLinkingExpanded(Boolean(initialSettlement.linkedTransactionId));
-      setTxSearchQuery('');
-    } else if (contact && isOpen) {
-      setAmount(suggestedAmount > 0 ? suggestedAmount.toString() : '');
-      setDate(getTodayString());
-      setNote(`Settlement with ${contact.name}`);
-      setDirection(contactNet < 0 ? 'i_owe_them' : 'they_owe_me');
-      setSelectedTxId(null);
-      setIsLinkingExpanded(false);
-      setTxSearchQuery('');
-    }
-    prevIsOpenRef.current = isOpen;
-  }, [contact, suggestedAmount, initialSettlement, isOpen, contactNet, reset]);
+  const [amount, setAmount] = useState<string>(() => {
+    if (initialSettlement) return initialSettlement.amount.toString();
+    return suggestedAmount > 0 ? suggestedAmount.toString() : '';
+  });
+  const [date, setDate] = useState<string>(() => {
+    if (initialSettlement) return initialSettlement.date;
+    return getTodayString();
+  });
+  const [note, setNote] = useState<string>(() => {
+    if (initialSettlement) return initialSettlement.note || '';
+    return `Settlement with ${contact.name}`;
+  });
+  const [direction, setDirection] = useState<OwedDirection>(() => {
+    if (initialSettlement) return initialSettlement.direction || (contactNet >= 0 ? 'they_owe_me' : 'i_owe_them');
+    return contactNet < 0 ? 'i_owe_them' : 'they_owe_me';
+  });
+  const [selectedTxId, setSelectedTxId] = useState<string | null>(() => {
+    return initialSettlement?.linkedTransactionId || null;
+  });
+  const [isLinkingExpanded, setIsLinkingExpanded] = useState<boolean>(() => {
+    return Boolean(initialSettlement?.linkedTransactionId);
+  });
+  const [txSearchQuery, setTxSearchQuery] = useState<string>('');
+  const { isSubmitting, startSubmit, reset } = useSubmitOnce();
 
   // Expected transaction type in bank account:
   // If they owe me and repay me -> money enters account -> CREDIT
@@ -186,17 +178,7 @@ export const SettleUpModal: React.FC<SettleUpModalProps> = ({
   };
 
   return (
-    <Modal
-      isOpen={isOpen}
-      onClose={onClose}
-      title={initialSettlement ? `Edit Settlement with ${contact.name}` : `Settle Up with ${contact.name}`}
-      subtitle={
-        initialSettlement
-          ? 'Modify amount, date, notes, or linked bank transaction'
-          : 'Record a payment to clear or reduce the open balance'
-      }
-    >
-      <form onSubmit={handleSubmit} className="space-y-4">
+    <form onSubmit={handleSubmit} className="space-y-4">
         {suggestedAmount > 0 && !initialSettlement && (
           <div className="p-3 bg-emerald-50 dark:bg-emerald-950/40 border border-emerald-200 dark:border-emerald-800 rounded-xl text-xs flex items-center justify-between">
             <span className="text-emerald-800 dark:text-emerald-300 font-medium">
@@ -446,6 +428,38 @@ export const SettleUpModal: React.FC<SettleUpModalProps> = ({
           </button>
         </div>
       </form>
+  );
+};
+
+export const SettleUpModal: React.FC<SettleUpModalProps> = ({
+  isOpen,
+  onClose,
+  contact,
+  suggestedAmount = 0,
+  initialSettlement,
+}) => {
+  if (!contact) return null;
+
+  return (
+    <Modal
+      isOpen={isOpen}
+      onClose={onClose}
+      title={initialSettlement ? `Edit Settlement with ${contact.name}` : `Settle Up with ${contact.name}`}
+      subtitle={
+        initialSettlement
+          ? 'Modify amount, date, notes, or linked bank transaction'
+          : 'Record a payment to clear or reduce the open balance'
+      }
+    >
+      {isOpen && (
+        <SettleUpForm
+          key={initialSettlement?.id ?? contact.id}
+          onClose={onClose}
+          contact={contact}
+          suggestedAmount={suggestedAmount}
+          initialSettlement={initialSettlement}
+        />
+      )}
     </Modal>
   );
 };

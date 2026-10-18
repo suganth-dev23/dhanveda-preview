@@ -7,7 +7,7 @@
 /**
  * Characters that spreadsheet applications (Excel, Google Sheets, Calc) interpret as formulas or execution triggers.
  */
-const FORMULA_TRIGGERS = new Set(['=', '+', '-', '@', '\t', '\r']);
+const FORMULA_TRIGGERS = new Set(['=', '+', '-', '@', '\t', '\r', '|', '%']);
 
 /**
  * Neutralizes potentially dangerous spreadsheet formula characters from user-controlled text cells.

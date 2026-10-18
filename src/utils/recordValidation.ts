@@ -67,32 +67,48 @@ export function normalizeTransaction(raw: any): Transaction | null {
   if (rawSplits && !Array.isArray(rawSplits) && typeof rawSplits === 'object') {
     const single = rawSplits as any;
     const splitAmount = typeof single.amount === 'number' ? single.amount : parseFloat(single.amount) || 0;
-    splitWith = [
-      {
-        id: single.id || `split-${id}-1`,
-        contactId: single.contactId ? String(single.contactId).trim() : undefined,
-        label: single.label || (!single.contactId ? 'Unnamed Person' : undefined),
-        amount: roundMoney(splitAmount),
-        direction: single.direction === 'i_owe_them' ? 'i_owe_them' : 'they_owe_me',
-        settled: Boolean(single.settled),
-        settledAmount: typeof single.settledAmount === 'number' ? roundMoney(single.settledAmount) : undefined,
-        linkedTransactionId: single.linkedTransactionId || undefined,
-      },
-    ];
+    if (isValidAmount(splitAmount)) {
+      const roundedAmount = roundMoney(splitAmount);
+      const settledAmount = typeof single.settledAmount === 'number' && single.settledAmount >= 0
+        ? Math.min(roundMoney(single.settledAmount), roundedAmount)
+        : undefined;
+      splitWith = [
+        {
+          id: single.id || `split-${id}-1`,
+          contactId: single.contactId ? String(single.contactId).trim() : undefined,
+          label: single.label || (!single.contactId ? 'Unnamed Person' : undefined),
+          amount: roundedAmount,
+          direction: single.direction === 'i_owe_them' ? 'i_owe_them' : 'they_owe_me',
+          settled: Boolean(single.settled),
+          settledAmount,
+          linkedTransactionId: single.linkedTransactionId || undefined,
+        },
+      ];
+    }
   } else if (Array.isArray(rawSplits)) {
-    splitWith = rawSplits.map((entry: any, idx: number) => {
+    const validEntries: SplitEntry[] = [];
+    rawSplits.forEach((entry: any, idx: number) => {
       const splitAmount = typeof entry.amount === 'number' ? entry.amount : parseFloat(entry.amount) || 0;
-      return {
-        id: entry.id || `split-${id}-${idx + 1}`,
-        contactId: entry.contactId ? String(entry.contactId).trim() : undefined,
-        label: entry.label || (!entry.contactId ? `Person ${idx + 1}` : undefined),
-        amount: roundMoney(splitAmount),
-        direction: entry.direction === 'i_owe_them' ? 'i_owe_them' : 'they_owe_me',
-        settled: Boolean(entry.settled),
-        settledAmount: typeof entry.settledAmount === 'number' ? roundMoney(entry.settledAmount) : undefined,
-        linkedTransactionId: entry.linkedTransactionId || undefined,
-      };
+      if (isValidAmount(splitAmount)) {
+        const roundedAmount = roundMoney(splitAmount);
+        const settledAmount = typeof entry.settledAmount === 'number' && entry.settledAmount >= 0
+          ? Math.min(roundMoney(entry.settledAmount), roundedAmount)
+          : undefined;
+        validEntries.push({
+          id: entry.id || `split-${id}-${idx + 1}`,
+          contactId: entry.contactId ? String(entry.contactId).trim() : undefined,
+          label: entry.label || (!entry.contactId ? `Person ${idx + 1}` : undefined),
+          amount: roundedAmount,
+          direction: entry.direction === 'i_owe_them' ? 'i_owe_them' : 'they_owe_me',
+          settled: Boolean(entry.settled),
+          settledAmount,
+          linkedTransactionId: entry.linkedTransactionId || undefined,
+        });
+      }
     });
+    if (validEntries.length > 0) {
+      splitWith = validEntries;
+    }
   }
 
   return {
@@ -201,7 +217,7 @@ export function normalizeInvestment(raw: any): Investment | null {
 
   const currentValue = typeof raw.currentValue === 'number' ? raw.currentValue : parseFloat(raw.currentValue);
   const investedAmount = typeof raw.investedAmount === 'number' ? raw.investedAmount : parseFloat(raw.investedAmount);
-  if (!Number.isFinite(currentValue) || currentValue < 0 || currentValue > MAX_AMOUNT || !isValidAmount(investedAmount)) return null;
+  if (!Number.isFinite(currentValue) || currentValue < 0 || currentValue > MAX_AMOUNT || (!isValidAmount(investedAmount) && investedAmount !== 0)) return null;
 
   return {
     id,
@@ -210,7 +226,7 @@ export function normalizeInvestment(raw: any): Investment | null {
     currentValue: roundMoney(currentValue),
     investedAmount: roundMoney(investedAmount),
     sipAmount: typeof raw.sipAmount === 'number' && isValidAmount(raw.sipAmount) ? roundMoney(raw.sipAmount) : undefined,
-    sipDay: typeof raw.sipDay === 'number' ? raw.sipDay : undefined,
+    sipDay: typeof raw.sipDay === 'number' && raw.sipDay >= 1 && raw.sipDay <= 31 ? Math.floor(raw.sipDay) : undefined,
     platform: typeof raw.platform === 'string' ? raw.platform : undefined,
     notes: typeof raw.notes === 'string' ? raw.notes : undefined,
     lastUpdated: typeof raw.lastUpdated === 'string' ? raw.lastUpdated : new Date().toISOString(),
@@ -294,7 +310,7 @@ export function normalizeRecurringPayment(raw: any): RecurringPayment | null {
     amount: roundMoney(amount),
     category: typeof raw.category === 'string' ? raw.category : 'General',
     frequency: raw.frequency || 'monthly',
-    dayOfMonth: typeof raw.dayOfMonth === 'number' ? raw.dayOfMonth : undefined,
+    dayOfMonth: typeof raw.dayOfMonth === 'number' && raw.dayOfMonth >= 1 && raw.dayOfMonth <= 31 ? Math.floor(raw.dayOfMonth) : undefined,
     startDate: typeof raw.startDate === 'string' && isValidDate(raw.startDate) ? raw.startDate : getTodayString(),
     endDate: typeof raw.endDate === 'string' && isValidDate(raw.endDate) ? raw.endDate : undefined,
     isActive: raw.isActive !== false,
@@ -326,7 +342,7 @@ export function normalizeRecurringPaymentLog(raw: any): RecurringPaymentLog | nu
     recurringPaymentId,
     dueDate: typeof raw.dueDate === 'string' ? raw.dueDate : getTodayString(),
     paidDate: typeof raw.paidDate === 'string' ? raw.paidDate : undefined,
-    amount,
+    amount: roundMoney(amount),
     linkedTransactionId: typeof raw.linkedTransactionId === 'string' ? raw.linkedTransactionId : undefined,
     createdAt: typeof raw.createdAt === 'string' ? raw.createdAt : new Date().toISOString(),
     updatedAt: typeof raw.updatedAt === 'string' ? raw.updatedAt : new Date().toISOString(),

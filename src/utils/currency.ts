@@ -24,6 +24,8 @@ export function formatINR(
   }
 
   const num = Number(amount);
+  const isNegative = num < 0;
+  const absNum = Math.abs(num);
   const showSymbol = options?.showSymbol !== false;
 
   if (options?.compact) {
@@ -31,18 +33,19 @@ export function formatINR(
   }
 
   const symbol = showSymbol ? '₹' : '';
-  const maxFraction = options?.maximumFractionDigits !== undefined ? options.maximumFractionDigits : (Number.isInteger(num) ? 0 : 2);
+  const sign = isNegative ? '-' : '';
+  const maxFraction = options?.maximumFractionDigits !== undefined ? options.maximumFractionDigits : (Number.isInteger(absNum) ? 0 : 2);
   const minFraction = options?.minimumFractionDigits !== undefined ? options.minimumFractionDigits : 0;
 
   try {
     const formatted = new Intl.NumberFormat('en-IN', {
       maximumFractionDigits: maxFraction,
       minimumFractionDigits: minFraction,
-    }).format(num);
+    }).format(absNum);
 
-    return `${symbol}${formatted}`;
+    return `${sign}${symbol}${formatted}`;
   } catch {
-    return `${symbol}${num.toLocaleString('en-IN')}`;
+    return `${sign}${symbol}${absNum.toLocaleString('en-IN')}`;
   }
 }
 
@@ -94,10 +97,10 @@ export function parseINR(value: string | number): number {
   if (!str) return 0;
 
   const isParenNegative = /^\(.*\)$/.test(str);
-  const isExplicitMinus = str.startsWith('-') || str.endsWith('-');
+  const isExplicitMinus = str.startsWith('-') || str.endsWith('-') || str.includes('-');
   const isDr = /\b(dr|debit)\b/i.test(str);
 
-  const cleaned = str.replace(/,/g, '').replace(/[^0-9.]/g, '');
+  const cleaned = str.replace(/,/g, '').replace(/[^0-9.eE+-]/g, '');
   const parsed = parseFloat(cleaned);
   if (isNaN(parsed)) return 0;
 
@@ -146,7 +149,11 @@ export function numberToWordsINR(amount: number): string {
   const remaining = num % 1000;
 
   if (crores > 0) {
-    result += `${convertTwoDigits(crores)} Crore `;
+    if (crores >= 100) {
+      result += `${numberToWordsINR(crores).replace(/ Rupees$/, '')} Crore `;
+    } else {
+      result += `${convertTwoDigits(crores)} Crore `;
+    }
   }
   if (lakhs > 0) {
     result += `${convertTwoDigits(lakhs)} Lakh `;
@@ -169,14 +176,16 @@ export function numberToWordsINR(amount: number): string {
 export function splitAmountEqually(totalAmount: number, shares: number): number[] {
   if (shares <= 0) return [];
   const roundedTotal = roundCurrency(totalAmount);
-  const totalCents = Math.round(roundedTotal * 100);
+  const isNegative = roundedTotal < 0;
+  const totalCents = Math.round(Math.abs(roundedTotal) * 100);
   const baseCents = Math.floor(totalCents / shares);
   const remainderCents = totalCents % shares;
 
   const results: number[] = [];
   for (let i = 0; i < shares; i++) {
     const shareCents = baseCents + (i < remainderCents ? 1 : 0);
-    results.push(roundCurrency(shareCents / 100));
+    const finalAmount = roundCurrency((isNegative ? -shareCents : shareCents) / 100);
+    results.push(finalAmount);
   }
   return results;
 }

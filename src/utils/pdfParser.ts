@@ -1,7 +1,8 @@
 import * as pdfjsLib from 'pdfjs-dist';
 import { StagedTransaction } from '../types/finance';
 import type { WorkerPDFResponse } from '../workers/pdfParser.worker';
-import { extractTransactionsFromPDFLines } from '../workers/pdfParser.worker';
+import { extractTransactionsFromPDFLines } from './pdfLineExtractor';
+import { getCustomAutoRules } from './categoryMatcher';
 
 // Configure pdfjs worker in main thread as well for seamless fallback
 try {
@@ -86,7 +87,7 @@ export async function parsePDFInThread(
       });
     }
 
-    const transactions = extractTransactionsFromPDFLines(lines);
+    const transactions = extractTransactionsFromPDFLines(lines, getCustomAutoRules());
 
     return {
       transactions,
@@ -151,6 +152,8 @@ export async function parsePDFStatement(
         { type: 'module' }
       );
 
+      let timeoutId: any = null;
+
       worker.onmessage = (e: MessageEvent<WorkerPDFResponse>) => {
         const data = e.data;
 
@@ -160,6 +163,7 @@ export async function parsePDFStatement(
           }
         } else if (data.type === 'success') {
           hasResolved = true;
+          if (timeoutId) clearTimeout(timeoutId);
           worker?.terminate();
           resolve({
             transactions: data.transactions,
@@ -169,6 +173,7 @@ export async function parsePDFStatement(
             rawExtractedText: data.rawExtractedText,
           });
         } else if (data.type === 'error') {
+          if (timeoutId) clearTimeout(timeoutId);
           if (data.isPasswordProtected) {
             hasResolved = true;
             worker?.terminate();
@@ -187,16 +192,20 @@ export async function parsePDFStatement(
       };
 
       worker.onerror = (err) => {
+        if (timeoutId) clearTimeout(timeoutId);
         console.warn('PDF Worker onerror triggered, falling back to in-thread parsing:', err);
         runFallback();
       };
 
       // Clone buffer before posting in case fallback is needed
       const bufferForWorker = arrayBuffer.slice(0);
-      worker.postMessage({ arrayBuffer: bufferForWorker }, [bufferForWorker]);
+      worker.postMessage(
+        { arrayBuffer: bufferForWorker, customRules: getCustomAutoRules() },
+        [bufferForWorker]
+      );
 
       // Safety timeout for worker (15 seconds)
-      setTimeout(() => {
+      timeoutId = setTimeout(() => {
         if (!hasResolved) {
           console.warn('PDF Worker timed out, triggering fallback.');
           runFallback();

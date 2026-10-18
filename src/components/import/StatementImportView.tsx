@@ -19,6 +19,7 @@ import { parsePDFStatement } from '../../utils/pdfParser';
 import { flagDuplicates } from '../../utils/deduplicator';
 import { sanitizeDateString, getTodayString } from '../../utils/date';
 import { roundCurrency } from '../../utils/currency';
+import { getCustomAutoRules, suggestCategory } from '../../utils/categoryMatcher';
 import { ReviewStagingTable } from './ReviewStagingTable';
 import { AutoRuleManagerModal } from './AutoRuleManagerModal';
 
@@ -125,9 +126,39 @@ export const StatementImportView: React.FC = () => {
  };
 
  const handleUpdateRow = (tempId: string, updated: Partial<StagedTransaction>) => {
- setStagedList(prev =>
- prev ? prev.map(t => (t.tempId === tempId ? { ...t, ...updated } : t)) : null
- );
+  setStagedList(prev =>
+    prev
+      ? prev.map(t =>
+          t.tempId === tempId
+            ? {
+                ...t,
+                ...updated,
+                // If user manually altered description, amount, or date, clear duplicate flag
+                ...(updated.description !== undefined || updated.amount !== undefined || updated.date !== undefined
+                  ? { isDuplicate: false, duplicateReason: undefined }
+                  : {}),
+              }
+            : t
+        )
+      : null
+  );
+ };
+
+ const handleRulesUpdated = () => {
+  setStagedList(prev => {
+    if (!prev || prev.length === 0) return prev;
+    const rules = getCustomAutoRules();
+    return prev.map(row => {
+      const match = suggestCategory(row.description, rules);
+      return {
+        ...row,
+        category: match.category !== 'Others' ? match.category : row.category,
+        paymentMethod: match.paymentMethod ?? row.paymentMethod,
+        type: match.suggestedType ?? row.type,
+      };
+    });
+  });
+  showToast('info', 'Rules Applied', 'Re-categorized staged transactions with updated rules', 2500);
  };
 
  const handleRemoveRow = (tempId: string) => {
@@ -459,6 +490,7 @@ export const StatementImportView: React.FC = () => {
   isOpen={isAutoRuleModalOpen}
   onClose={() => setIsAutoRuleModalOpen(false)}
   categories={categories}
+  onRulesUpdated={handleRulesUpdated}
  />
  </div>
  );

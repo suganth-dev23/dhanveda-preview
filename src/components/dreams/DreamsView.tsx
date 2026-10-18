@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useMemo } from 'react';
 import {
   Plus,
   Target,
@@ -28,10 +28,14 @@ export const DreamsView: React.FC = () => {
   const [isContributionOpen, setIsContributionOpen] = useState(false);
   const [targetContributionDream, setTargetContributionDream] = useState<DreamGoal | null>(null);
 
+  const cappedGoalsSaved = useMemo(() => {
+    return dreams.reduce((acc, d) => acc + Math.min(Math.max(0, d.currentSaved || 0), d.targetAmount || 0), 0);
+  }, [dreams]);
+
   const safeTotalGoalsTarget = Number.isFinite(totalGoalsTarget) && totalGoalsTarget > 0 ? totalGoalsTarget : 0;
   const safeTotalGoalsSaved = Number.isFinite(totalGoalsSaved) && totalGoalsSaved > 0 ? totalGoalsSaved : 0;
-  const rawOverallPercent = safeTotalGoalsTarget > 0 ? Math.round((safeTotalGoalsSaved / safeTotalGoalsTarget) * 100) : 0;
-  const overallPercent = Number.isFinite(rawOverallPercent) ? Math.max(0, rawOverallPercent) : 0;
+  const rawOverallPercent = safeTotalGoalsTarget > 0 ? Math.round((cappedGoalsSaved / safeTotalGoalsTarget) * 100) : 0;
+  const overallPercent = Number.isFinite(rawOverallPercent) ? Math.min(100, Math.max(0, rawOverallPercent)) : 0;
   const completedGoalsCount = dreams.filter(d => (d.targetAmount || 0) > 0 && (d.currentSaved || 0) >= d.targetAmount).length;
 
   const handleEdit = (dream: DreamGoal) => {
@@ -104,9 +108,9 @@ export const DreamsView: React.FC = () => {
             </span>
           </div>
           <Progress
-            value={Math.min(safeTotalGoalsSaved, safeTotalGoalsTarget)}
+            value={cappedGoalsSaved}
             max={safeTotalGoalsTarget > 0 ? safeTotalGoalsTarget : 1}
-            tone={safeTotalGoalsSaved >= safeTotalGoalsTarget && safeTotalGoalsTarget > 0 ? 'reward' : 'primary'}
+            tone={cappedGoalsSaved >= safeTotalGoalsTarget && safeTotalGoalsTarget > 0 ? 'reward' : 'primary'}
             size="md"
           />
         </div>

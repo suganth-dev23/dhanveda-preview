@@ -10,7 +10,6 @@ import { formatDate } from '../../utils/date';
 import { formatINR } from '../../utils/currency';
 import { IconRenderer } from '../common/IconRenderer';
 import { Money } from '../ui/Money';
-import { getCategoryBadgeStyle } from '../../constants/categoryTheme';
 
 export interface TransactionRowProps {
   tx: Transaction;
@@ -63,6 +62,8 @@ export const SplitDetailsBadge: React.FC<SplitDetailsBadgeProps> = React.memo(fu
 
   const totalSplit = splits.reduce((sum, s) => sum + s.amount, 0);
   const isSettled = splits.every(s => s.settled);
+  const allTheyOweMe = splits.every(s => s.direction === 'they_owe_me');
+  const allIOweThem = splits.every(s => s.direction === 'i_owe_them');
   const tooltip = splits
     .map(
       s =>
@@ -70,22 +71,31 @@ export const SplitDetailsBadge: React.FC<SplitDetailsBadgeProps> = React.memo(fu
           s.contactId
             ? contactMap?.get(s.contactId)?.name || 'Contact'
             : s.label || 'Unnamed'
-        }: ${formatINR(s.amount)}`
+        }: ${formatINR(s.amount)} (${s.direction === 'they_owe_me' ? 'owed' : 'you owe'})`
     )
     .join(' • ');
+
+  const labelSuffix = isSettled
+    ? '(Settled)'
+    : allTheyOweMe
+    ? 'owed'
+    : allIOweThem
+    ? 'you owe'
+    : 'split';
+
+  const badgeColor = isSettled
+    ? 'bg-sunken text-ink-3 line-through'
+    : allIOweThem
+    ? 'bg-rose-50 text-rose-700 dark:bg-rose-950/40 dark:text-rose-300'
+    : 'bg-emerald-50 text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-300';
 
   return (
     <div className="mt-1 flex items-center gap-1.5 flex-wrap">
       <span
         title={tooltip}
-        className={`inline-flex items-center px-1.5 py-0.5 rounded-md text-xs font-medium font-numeric ${
-          isSettled
-            ? 'bg-sunken text-ink-3 line-through'
-            : 'bg-emerald-50 text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-300'
-        }`}
+        className={`inline-flex items-center px-1.5 py-0.5 rounded-md text-xs font-medium font-numeric ${badgeColor}`}
       >
-        Split with {splits.length} people · <Money value={totalSplit} size="xs" className="inline text-inherit font-medium" /> owed{' '}
-        {isSettled ? '(Settled)' : ''}
+        Split with {splits.length} people · <Money value={totalSplit} size="xs" className="inline text-inherit font-medium" /> {labelSuffix}
       </span>
     </div>
   );
@@ -184,7 +194,10 @@ export const TransactionTableRow: React.FC<TransactionRowProps> = React.memo(fun
       <td className="py-3.5 px-4 whitespace-nowrap">
         <span
           className="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-semibold"
-          style={getCategoryBadgeStyle(catInfo?.color)}
+          style={{
+            backgroundColor: `${catInfo?.color || '#64748b'}15`,
+            color: catInfo?.color || '#64748b',
+          }}
         >
           {tx.category}
         </span>
@@ -299,8 +312,11 @@ export const TransactionCardRow: React.FC<TransactionRowProps> = React.memo(func
             </p>
             <div className="flex items-center gap-1.5 flex-wrap mt-0.5">
               <span
-                className="px-2 py-0.5 rounded-full text-xs font-semibold"
-                style={getCategoryBadgeStyle(catInfo?.color)}
+                className="px-2 py-0.2 rounded-full text-xs font-bold"
+                style={{
+                  backgroundColor: `${catInfo?.color || '#64748b'}15`,
+                  color: catInfo?.color || '#64748b',
+                }}
               >
                 {tx.category}
               </span>

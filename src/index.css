@@ -24,7 +24,7 @@
   --line: #E4E1DA;         --line-input: #7D838D;
   --ink-1: #14181F;        --ink-2: #4B5563;        --ink-3: #5F6B7A;
   --primary: #2B4FD8;      --on-primary: #FFFFFF;   --primary-tint: #E8EDFF;
-  --positive: #075E40;     --positive-tint: #E6F5EE;
+  --positive: #0B7A55;     --positive-tint: #E6F5EE;
   --negative: #C2253F;     --negative-tint: #FCEBEE;
   --warning: #8A5300;      --warning-tint: #FFF3D6;
   --reward: #8F6410;       --reward-tint: #FFF6DD;  --reward-fill: #F5B742;
@@ -72,7 +72,6 @@
     from { opacity: 0; transform: translateY(-8px); }
     to { opacity: 1; transform: translateY(0); }
   }
-
   /* ── Animation Utilities ── */
   --animate-shimmer: shimmer 1.8s infinite;
   --animate-fade-in: fade-in 0.2s ease-out both;
@@ -293,6 +292,8 @@ html.theme-anim *::after {
   content-visibility: auto;
 }
 
+
+
 /* Unified Interaction Utilities (A1.7) */
 .press {
   transition: transform 150ms cubic-bezier(0.16, 1, 0.3, 1);
@@ -434,4 +435,41 @@ html[data-privacy="on"] [data-privacy-blur]:hover {
   filter: blur(0px);
   user-select: auto;
 }
+
+/* ── Modern Chart SVG Micro-Interactions & Transitions ── */
+.chart-enter-fade {
+  animation: chart-enter 0.25s cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+
+@keyframes chart-enter {
+  from {
+    opacity: 0;
+    transform: translateY(4px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.recharts-pie-sector path {
+  transition: transform 0.2s cubic-bezier(0.16, 1, 0.3, 1), opacity 0.2s ease-out, filter 0.2s ease-out;
+  transform-origin: center;
+  cursor: pointer;
+}
+.recharts-pie-sector:hover path {
+  transform: scale(1.035);
+  filter: drop-shadow(0 2px 6px rgba(0, 0, 0, 0.35));
+}
+
+.recharts-bar-rectangle path,
+.recharts-bar-rectangle rect {
+  transition: opacity 0.2s ease-out, filter 0.2s ease-out;
+  cursor: pointer;
+}
+.recharts-bar-rectangle:hover path,
+.recharts-bar-rectangle:hover rect {
+  filter: brightness(1.15);
+}
+
 

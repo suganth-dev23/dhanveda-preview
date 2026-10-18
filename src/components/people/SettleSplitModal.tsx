@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo, useRef } from 'react';
+import React, { useState, useMemo } from 'react';
 import { Modal } from '../common/Modal';
 import { useFinance } from '../../context/FinanceContext';
 import { Contact, Transaction, SplitEntry } from '../../types/finance';
@@ -27,8 +27,14 @@ interface SettleSplitModalProps {
   splitEntry: SplitEntry;
 }
 
-export const SettleSplitModal: React.FC<SettleSplitModalProps> = ({
-  isOpen,
+interface SettleSplitFormProps {
+  onClose: () => void;
+  contact: Contact;
+  transaction: Transaction;
+  splitEntry: SplitEntry;
+}
+
+const SettleSplitForm: React.FC<SettleSplitFormProps> = ({
   onClose,
   contact,
   transaction,
@@ -40,15 +46,6 @@ export const SettleSplitModal: React.FC<SettleSplitModalProps> = ({
     settleSplitEntry,
   } = useFinance();
 
-  const [settledAmount, setSettledAmount] = useState<string>('');
-  const [date, setDate] = useState<string>(getTodayString());
-  const [note, setNote] = useState<string>('');
-  const [selectedTxId, setSelectedTxId] = useState<string | null>(null);
-  const [searchQuery, setSearchQuery] = useState<string>('');
-  const [filterMode, setFilterMode] = useState<'all' | 'exact' | 'credits'>('all');
-  const { isSubmitting, startSubmit, reset } = useSubmitOnce();
-  const prevIsOpenRef = useRef(false);
-
   // Existing settlement for this split entry if any
   const existingSettlement = useMemo(() => {
     return settlements.find(
@@ -56,30 +53,23 @@ export const SettleSplitModal: React.FC<SettleSplitModalProps> = ({
     );
   }, [settlements, transaction.id, splitEntry.id]);
 
-  useEffect(() => {
-    if (!isOpen) {
-      prevIsOpenRef.current = false;
-      return;
-    }
-    const isOpening = isOpen && !prevIsOpenRef.current;
-    if (isOpening) {
-      reset();
-    }
-    const initialAmt = splitEntry.settledAmount !== undefined && splitEntry.settledAmount > 0
-      ? splitEntry.settledAmount
-      : splitEntry.amount;
+  const remainingBalance = Math.max(0, roundCurrency(splitEntry.amount - (splitEntry.settledAmount || 0)));
+  const initialAmt = remainingBalance > 0 ? remainingBalance : splitEntry.amount;
 
-    const linkedId = splitEntry.linkedTransactionId || existingSettlement?.linkedTransactionId || null;
-    const linkedTx = linkedId ? transactions.find(t => t.id === linkedId) : null;
+  const linkedId = splitEntry.linkedTransactionId || existingSettlement?.linkedTransactionId || null;
+  const linkedTx = linkedId ? transactions.find(t => t.id === linkedId) : null;
 
-    setSettledAmount(initialAmt.toString());
-    setDate(linkedTx?.date || existingSettlement?.date || transaction.date || getTodayString());
-    setNote(existingSettlement?.note || `Repayment for "${transaction.description}"`);
-    setSelectedTxId(linkedId);
-    setSearchQuery('');
-    setFilterMode('all');
-    prevIsOpenRef.current = isOpen;
-  }, [isOpen, splitEntry, existingSettlement, transaction, transactions, reset]);
+  const [settledAmount, setSettledAmount] = useState<string>(initialAmt.toString());
+  const [date, setDate] = useState<string>(
+    linkedTx?.date || existingSettlement?.date || transaction.date || getTodayString()
+  );
+  const [note, setNote] = useState<string>(
+    existingSettlement?.note || `Repayment for "${transaction.description}"`
+  );
+  const [selectedTxId, setSelectedTxId] = useState<string | null>(linkedId);
+  const [searchQuery, setSearchQuery] = useState<string>('');
+  const [filterMode, setFilterMode] = useState<'all' | 'exact' | 'credits'>('all');
+  const { isSubmitting, startSubmit, reset } = useSubmitOnce();
 
   // Expected type: if they owe me, bank repayment is a credit
   const expectedTxType = splitEntry.direction === 'they_owe_me' ? 'credit' : 'debit';
@@ -190,13 +180,7 @@ export const SettleSplitModal: React.FC<SettleSplitModalProps> = ({
   };
 
   return (
-    <Modal
-      isOpen={isOpen}
-      onClose={onClose}
-      title={`Connect Repayment: ${transaction.description}`}
-      subtitle={`Manage settlement and connect bank transaction for ${contact.name}`}
-    >
-      <form onSubmit={handleSave} className="space-y-4">
+    <form onSubmit={handleSave} className="space-y-4">
         {/* Original Split Expense Summary Card */}
         <div className="p-3.5 rounded-2xl bg-sunken border border-line flex items-center justify-between gap-3 text-xs">
           <div className="flex items-center gap-2.5 min-w-0">
@@ -504,6 +488,32 @@ export const SettleSplitModal: React.FC<SettleSplitModalProps> = ({
           </div>
         </div>
       </form>
+  );
+};
+
+export const SettleSplitModal: React.FC<SettleSplitModalProps> = ({
+  isOpen,
+  onClose,
+  contact,
+  transaction,
+  splitEntry,
+}) => {
+  return (
+    <Modal
+      isOpen={isOpen}
+      onClose={onClose}
+      title={`Connect Repayment: ${transaction.description}`}
+      subtitle={`Manage settlement and connect bank transaction for ${contact.name}`}
+    >
+      {isOpen && (
+        <SettleSplitForm
+          key={`${transaction.id}_${splitEntry.id}`}
+          onClose={onClose}
+          contact={contact}
+          transaction={transaction}
+          splitEntry={splitEntry}
+        />
+      )}
     </Modal>
   );
 };

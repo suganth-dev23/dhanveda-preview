@@ -102,6 +102,7 @@ export function getPaymentSchedule(
   const todayStr = formatDateISO(refYear, refMonth, refDay);
 
   const [startYear, startMonth, startDay] = parseDateISO(payment.startDate);
+  const freq: string = payment.frequency;
 
   // If start date is in the future, the first occurrence cannot be before startDate
   if (payment.startDate > todayStr) {
@@ -121,34 +122,36 @@ export function getPaymentSchedule(
   }
 
   // Monthly frequency handling (most common for bills, rent, SIP, subscriptions)
-  if (payment.frequency === 'monthly') {
+  if (freq === 'monthly') {
     const targetDay = payment.dayOfMonth || startDay || 1;
 
-    // Check candidate for previous month first to catch overdue payments across month boundaries
-    let prevM = refMonth - 1;
-    let prevY = refYear;
-    if (prevM < 1) {
-      prevM = 12;
-      prevY -= 1;
-    }
-    const prevMonthDay = clampDayOfMonth(prevY, prevM, targetDay);
-    const prevMonthDueDate = formatDateISO(prevY, prevM, prevMonthDay);
-    const isPrevMonthPaid = isOccurrencePaid(payment.id, prevMonthDueDate, logs);
+    // Check candidate for previous months to catch overdue payments (up to 6 months back)
+    for (let back = 6; back >= 1; back--) {
+      let prevM = refMonth - back;
+      let prevY = refYear;
+      while (prevM < 1) {
+        prevM += 12;
+        prevY -= 1;
+      }
+      const prevMonthDay = clampDayOfMonth(prevY, prevM, targetDay);
+      const prevMonthDueDate = formatDateISO(prevY, prevM, prevMonthDay);
+      const isPrevMonthPaid = isOccurrencePaid(payment.id, prevMonthDueDate, logs);
 
-    // If previous month's due date is after startDate, and is UNPAID, it is OVERDUE!
-    if (prevMonthDueDate >= payment.startDate && !isPrevMonthPaid) {
-      const daysDiff = Math.round(
-        (new Date(prevMonthDueDate).getTime() - new Date(todayStr).getTime()) / (1000 * 60 * 60 * 24)
-      );
-      if (!payment.endDate || prevMonthDueDate <= payment.endDate) {
-        const thisMonthDay = clampDayOfMonth(refYear, refMonth, targetDay);
-        const thisMonthDueDate = formatDateISO(refYear, refMonth, thisMonthDay);
-        return {
-          activeDueDate: prevMonthDueDate,
-          isOverdue: true,
-          daysDiff,
-          nextCycleDueDate: (!payment.endDate || thisMonthDueDate <= payment.endDate) ? thisMonthDueDate : null,
-        };
+      // If due date is on or after startDate and UNPAID, it is OVERDUE!
+      if (prevMonthDueDate >= payment.startDate && !isPrevMonthPaid) {
+        const daysDiff = Math.round(
+          (new Date(prevMonthDueDate).getTime() - new Date(todayStr).getTime()) / (1000 * 60 * 60 * 24)
+        );
+        if (!payment.endDate || prevMonthDueDate <= payment.endDate) {
+          const thisMonthDay = clampDayOfMonth(refYear, refMonth, targetDay);
+          const thisMonthDueDate = formatDateISO(refYear, refMonth, thisMonthDay);
+          return {
+            activeDueDate: prevMonthDueDate,
+            isOverdue: true,
+            daysDiff,
+            nextCycleDueDate: (!payment.endDate || thisMonthDueDate <= payment.endDate) ? thisMonthDueDate : null,
+          };
+        }
       }
     }
 
@@ -227,10 +230,11 @@ export function getPaymentSchedule(
     };
   }
 
-  // Quarterly frequency (every 3 months from startDate)
-  if (payment.frequency === 'quarterly') {
+  // Quarterly or Semi-annually frequency
+  if (freq === 'quarterly' || freq === 'semi-annually' || freq === 'half-yearly') {
+    const stepMonths = freq === 'quarterly' ? 3 : 6;
+    const maxOverdueDays = stepMonths * 32;
     const targetDay = payment.dayOfMonth || startDay || 1;
-    // Iterate quarters forward from startDate until we find current or upcoming cycle
     let curY = startYear;
     let curM = startMonth;
 
@@ -243,32 +247,32 @@ export function getPaymentSchedule(
       }
 
       const isPaid = isOccurrencePaid(payment.id, dueDate, logs);
-      const daysDiff = Math.round(
-        (new Date(dueDate).getTime() - new Date(todayStr).getTime()) / (1000 * 60 * 60 * 24)
-      );
+      const dueUTC = Date.UTC(curY, curM - 1, day);
+      const todayUTC = Date.UTC(refYear, refMonth - 1, refDay);
+      const daysDiff = Math.round((dueUTC - todayUTC) / (1000 * 60 * 60 * 24));
 
-      if (!isPaid && daysDiff < 0) {
-        return { activeDueDate: dueDate, isOverdue: true, daysDiff, nextCycleDueDate: dueDate };
+      // Advance if already paid or too ancient to be the active due cycle
+      if (isPaid || daysDiff < -maxOverdueDays) {
+        curM += stepMonths;
+        if (curM > 12) {
+          curY += Math.floor((curM - 1) / 12);
+          curM = ((curM - 1) % 12) + 1;
+        }
+        if (curY > refYear + 5) break;
+        continue;
       }
 
-      if (!isPaid && daysDiff >= 0) {
-        return { activeDueDate: dueDate, isOverdue: false, daysDiff, nextCycleDueDate: dueDate };
-      }
-
-      // advance 3 months
-      curM += 3;
-      if (curM > 12) {
-        curY += Math.floor((curM - 1) / 12);
-        curM = ((curM - 1) % 12) + 1;
-      }
-
-      // Safety escape if too far in the future
-      if (curY > refYear + 5) break;
+      return {
+        activeDueDate: dueDate,
+        isOverdue: !isPaid && daysDiff < 0,
+        daysDiff,
+        nextCycleDueDate: dueDate,
+      };
     }
   }
 
   // Yearly frequency (once a year on startMonth / targetDay)
-  if (payment.frequency === 'yearly') {
+  if (freq === 'yearly') {
     const targetDay = payment.dayOfMonth || startDay || 1;
     let yearCandidate = refYear;
     const day = clampDayOfMonth(yearCandidate, startMonth, targetDay);
@@ -286,9 +290,10 @@ export function getPaymentSchedule(
       return { activeDueDate: null, isOverdue: false, daysDiff: 0, nextCycleDueDate: null };
     }
 
-    const daysDiff = Math.round(
-      (new Date(dueDate).getTime() - new Date(todayStr).getTime()) / (1000 * 60 * 60 * 24)
-    );
+    const dueParts = parseDateISO(dueDate);
+    const dueUTC = Date.UTC(dueParts[0], dueParts[1] - 1, dueParts[2]);
+    const todayUTC = Date.UTC(refYear, refMonth - 1, refDay);
+    const daysDiff = Math.round((dueUTC - todayUTC) / (1000 * 60 * 60 * 24));
 
     return {
       activeDueDate: dueDate,
@@ -298,36 +303,41 @@ export function getPaymentSchedule(
     };
   }
 
-  // Weekly or Bi-weekly frequency (every 7 or 14 days from startDate)
-  if (payment.frequency === 'weekly' || (payment.frequency as string) === 'bi-weekly' || (payment.frequency as string) === 'biweekly') {
-    const intervalDays = payment.frequency === 'weekly' ? 7 : 14;
+  // Daily, Weekly, or Bi-weekly frequency
+  if (
+    freq === 'daily' ||
+    freq === 'weekly' ||
+    freq === 'bi-weekly' ||
+    freq === 'biweekly'
+  ) {
+    const intervalDays = freq === 'daily' ? 1 : freq === 'weekly' ? 7 : 14;
     const msPerDay = 1000 * 60 * 60 * 24;
-    const daysSinceStart = Math.round((new Date(todayStr).getTime() - new Date(payment.startDate).getTime()) / msPerDay);
+    const todayUTC = Date.UTC(refYear, refMonth - 1, refDay);
+    const startUTC = Date.UTC(startYear, startMonth - 1, startDay);
+    const daysSinceStart = Math.round((todayUTC - startUTC) / msPerDay);
 
     const periodsElapsed = Math.floor(daysSinceStart / intervalDays);
-    const prevOccurrenceObj = new Date(payment.startDate);
-    prevOccurrenceObj.setDate(prevOccurrenceObj.getDate() + periodsElapsed * intervalDays);
+    const prevDate = new Date(Date.UTC(startYear, startMonth - 1, startDay + periodsElapsed * intervalDays));
     const prevOccurrenceStr = formatDateISO(
-      prevOccurrenceObj.getFullYear(),
-      prevOccurrenceObj.getMonth() + 1,
-      prevOccurrenceObj.getDate()
+      prevDate.getUTCFullYear(),
+      prevDate.getUTCMonth() + 1,
+      prevDate.getUTCDate()
     );
 
-    const nextOccurrenceObj = new Date(payment.startDate);
-    nextOccurrenceObj.setDate(nextOccurrenceObj.getDate() + (periodsElapsed + 1) * intervalDays);
+    const nextDate = new Date(Date.UTC(startYear, startMonth - 1, startDay + (periodsElapsed + 1) * intervalDays));
     const nextOccurrenceStr = formatDateISO(
-      nextOccurrenceObj.getFullYear(),
-      nextOccurrenceObj.getMonth() + 1,
-      nextOccurrenceObj.getDate()
+      nextDate.getUTCFullYear(),
+      nextDate.getUTCMonth() + 1,
+      nextDate.getUTCDate()
     );
 
     const isPrevPaid = isOccurrencePaid(payment.id, prevOccurrenceStr, logs);
 
     // If previous occurrence is on or after startDate and is unpaid
     if (prevOccurrenceStr >= payment.startDate && !isPrevPaid) {
-      const daysDiff = Math.round(
-        (new Date(prevOccurrenceStr).getTime() - new Date(todayStr).getTime()) / msPerDay
-      );
+      const prevParts = parseDateISO(prevOccurrenceStr);
+      const prevUTC = Date.UTC(prevParts[0], prevParts[1] - 1, prevParts[2]);
+      const daysDiff = Math.round((prevUTC - todayUTC) / msPerDay);
       if (!payment.endDate || prevOccurrenceStr <= payment.endDate) {
         return {
           activeDueDate: prevOccurrenceStr,
@@ -344,9 +354,9 @@ export function getPaymentSchedule(
     }
 
     const isNextPaid = isOccurrencePaid(payment.id, nextOccurrenceStr, logs);
-    const daysDiff = Math.round(
-      (new Date(nextOccurrenceStr).getTime() - new Date(todayStr).getTime()) / msPerDay
-    );
+    const nextParts = parseDateISO(nextOccurrenceStr);
+    const nextUTC = Date.UTC(nextParts[0], nextParts[1] - 1, nextParts[2]);
+    const daysDiff = Math.round((nextUTC - todayUTC) / msPerDay);
 
     return {
       activeDueDate: nextOccurrenceStr,

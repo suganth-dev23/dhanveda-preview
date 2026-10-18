@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import {
  Plus,
  TrendingUp,
@@ -14,17 +14,7 @@ import { PortfolioAllocationChart } from './PortfolioAllocationChart';
 import { INDIAN_WEALTH_PALETTE } from '../../constants/theme';
 import { useStaggerChildren } from '../../hooks/useStaggerChildren';
 import { Button, Card, Money, Stat } from '../ui';
-
-function calculateCAGR(investedAmount: number, currentValue: number, years: number): number | null {
- if (!Number.isFinite(investedAmount) || !Number.isFinite(currentValue) || !Number.isFinite(years)) return null;
- if (investedAmount <= 0 || currentValue <= 0 || years <= 0) return null;
- try {
- const cagr = Math.pow(currentValue / investedAmount, 1 / years) - 1;
- return Number.isFinite(cagr) ? cagr * 100 : null;
- } catch {
- return null;
- }
-}
+import { calculateCAGR, getInvestmentInceptionDate } from '../../utils/investmentCalculations';
 
 export const InvestmentsView: React.FC = () => {
  const { containerRef: assetGridRef, getChildStyle } = useStaggerChildren(50);
@@ -45,6 +35,12 @@ export const InvestmentsView: React.FC = () => {
  const [isModalOpen, setIsModalOpen] = useState(false);
  const [selectedInvestment, setSelectedInvestment] = useState<Investment | null>(null);
  const [filterType, setFilterType] = useState<string>('all');
+ const [isMounted, setIsMounted] = useState(false);
+
+ useEffect(() => {
+   const t = setTimeout(() => setIsMounted(true), 50);
+   return () => clearTimeout(t);
+ }, []);
 
  const totalMonthlySIP = useMemo(() => {
  return investments.reduce((sum, i) => sum + (Number.isFinite(i.sipAmount) && i.sipAmount ? i.sipAmount : 0), 0);
@@ -150,7 +146,7 @@ export const InvestmentsView: React.FC = () => {
 
  {/* 4-column summary strip */}
  <div className="mt-4 sm:mt-6 grid grid-cols-2 sm:grid-cols-4 gap-2 sm:gap-3 pt-4 sm:pt-6 border-t border-line">
- <Card variant="sunken" padding="sm" className="rounded-xl sm:rounded-2xl">
+ <Card variant="sunken" padding="sm" className="rounded-xl sm:rounded-2xl transition-[transform,box-shadow,border-color] duration-200 ease-out hover:-translate-y-0.5 hover:shadow-xs hover:border-line-input/40">
  <Stat
  label="Invested Capital"
  value={safeTotalInvested}
@@ -158,7 +154,7 @@ export const InvestmentsView: React.FC = () => {
  />
  </Card>
 
- <Card variant="sunken" padding="sm" className="rounded-xl sm:rounded-2xl">
+ <Card variant="sunken" padding="sm" className="rounded-xl sm:rounded-2xl transition-[transform,box-shadow,border-color] duration-200 ease-out hover:-translate-y-0.5 hover:shadow-xs hover:border-line-input/40">
  <Stat
  label="Total Returns"
  value={safeTotalGainLoss}
@@ -171,7 +167,7 @@ export const InvestmentsView: React.FC = () => {
  />
  </Card>
 
- <Card variant="sunken" padding="sm" className="rounded-xl sm:rounded-2xl">
+ <Card variant="sunken" padding="sm" className="rounded-xl sm:rounded-2xl transition-[transform,box-shadow,border-color] duration-200 ease-out hover:-translate-y-0.5 hover:shadow-xs hover:border-line-input/40">
  <Stat
  label="Monthly SIPs"
  value={totalMonthlySIP}
@@ -179,7 +175,7 @@ export const InvestmentsView: React.FC = () => {
  />
  </Card>
 
- <Card variant="sunken" padding="sm" className="rounded-xl sm:rounded-2xl">
+ <Card variant="sunken" padding="sm" className="rounded-xl sm:rounded-2xl transition-[transform,box-shadow,border-color] duration-200 ease-out hover:-translate-y-0.5 hover:shadow-xs hover:border-line-input/40">
  <Stat
  label="Total Holdings"
  value={String(investments.length)}
@@ -197,7 +193,7 @@ export const InvestmentsView: React.FC = () => {
 
  {/* Segmented bar */}
  <div
- className="h-3 w-full rounded-full bg-sunken overflow-hidden flex gap-0.5 p-0.5 border border-line"
+ className="h-3.5 w-full rounded-full bg-sunken overflow-hidden flex gap-1 p-0.5 border border-line"
  role="progressbar"
  aria-label="Portfolio asset allocation breakdown"
  aria-valuenow={100}
@@ -207,10 +203,12 @@ export const InvestmentsView: React.FC = () => {
  {assetSegments.map(seg => (
  <div
  key={seg.type}
- style={{ width: `${Math.max(seg.percentage, 2)}%`, backgroundColor: seg.color }}
- className="h-full rounded-full transition-[width] duration-500"
+ style={{ width: isMounted ? `${Math.max(0, seg.percentage)}%` : '0%', backgroundColor: seg.color }}
+ className="h-full rounded-full transition-[width] duration-[450ms] ease-[cubic-bezier(0.16,1,0.3,1)] relative overflow-hidden shadow-xs shrink-0"
  title={`${seg.type}: ${seg.percentage.toFixed(1)}%`}
- />
+ >
+ <div className="absolute inset-0 bg-gradient-to-b from-white/30 via-white/10 to-transparent pointer-events-none rounded-full" />
+ </div>
  ))}
  </div>
 
@@ -267,10 +265,10 @@ export const InvestmentsView: React.FC = () => {
  padding="md"
  style={getChildStyle(idx)}
  onClick={() => setFilterType(filterType === seg.type ? 'all' : seg.type)}
- className={`rounded-2xl transition-[transform,box-shadow,border-color] duration-200 animate-slide-up ${
+ className={`group rounded-2xl transition-[transform,box-shadow,border-color,background-color] duration-200 ease-out hover:-translate-y-1 hover:shadow-md active:translate-y-0 active:scale-[0.99] cursor-pointer animate-slide-up ${
  filterType === seg.type
- ? '!border-reward ring-1 ring-reward/40 shadow-sm'
- : ''
+ ? '!border-reward ring-2 ring-reward/40 shadow-sm'
+ : 'border-line hover:border-reward/60 dark:hover:border-reward/50 hover:shadow-reward/5'
  }`}
  >
  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
@@ -381,12 +379,13 @@ export const InvestmentsView: React.FC = () => {
  const safeGainPct = Number.isFinite(gainPct) ? gainPct : 0;
  const isProfitable = gain >= 0;
 
- // Safe CAGR calculation if holding date is recorded (min 90 days)
+ // Safe CAGR calculation if holding inception date is recorded (min 90 days)
  let cagrPct: number | null = null;
- if (inv.lastUpdated && safeInv > 0 && safeVal > 0) {
- const updatedTime = new Date(inv.lastUpdated).getTime();
- if (!isNaN(updatedTime)) {
- const daysHeld = Math.max(1, (new Date().getTime() - updatedTime) / (1000 * 60 * 60 * 24));
+ const inceptionDate = getInvestmentInceptionDate(inv);
+ if (inceptionDate && safeInv > 0 && safeVal > 0) {
+ const inceptionTime = new Date(inceptionDate).getTime();
+ if (!isNaN(inceptionTime)) {
+ const daysHeld = Math.max(1, (new Date().getTime() - inceptionTime) / (1000 * 60 * 60 * 24));
  if (daysHeld >= 90) {
  cagrPct = calculateCAGR(safeInv, safeVal, daysHeld / 365.25);
  }
@@ -399,7 +398,7 @@ export const InvestmentsView: React.FC = () => {
  <div>
  <p>{inv.name}</p>
  {inv.sipAmount && (
- <p className="text-xs text-emerald-800 dark:text-emerald-300 font-medium font-numeric">
+ <p className="text-xs text-emerald-600 dark:text-emerald-400 font-normal font-numeric">
  SIP: <Money value={inv.sipAmount} size="xs" tone="positive" />/mo {inv.sipDay ? `(Day ${inv.sipDay})` : ''}
  </p>
  )}

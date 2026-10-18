@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState } from 'react';
 import { Modal } from '../common/Modal';
 import { useFinance } from '../../context/FinanceContext';
 import { RecurringPayment, RecurrenceFrequency, PaymentMethod } from '../../types/finance';
@@ -11,6 +11,12 @@ interface RecurringPaymentModalProps {
   isOpen: boolean;
   onClose: () => void;
   initialPayment?: RecurringPayment | null;
+  onSave: (paymentData: Omit<RecurringPayment, 'id' | 'createdAt' | 'updatedAt'>) => void;
+}
+
+interface RecurringPaymentFormProps {
+  initialPayment?: RecurringPayment | null;
+  onClose: () => void;
   onSave: (paymentData: Omit<RecurringPayment, 'id' | 'createdAt' | 'updatedAt'>) => void;
 }
 
@@ -34,63 +40,24 @@ const PAYMENT_METHODS: PaymentMethod[] = [
   'Other',
 ];
 
-export const RecurringPaymentModal: React.FC<RecurringPaymentModalProps> = ({
-  isOpen,
-  onClose,
+const RecurringPaymentForm: React.FC<RecurringPaymentFormProps> = ({
   initialPayment,
+  onClose,
   onSave,
 }) => {
   const { categories } = useFinance();
 
-  const [name, setName] = useState<string>('');
-  const [amountStr, setAmountStr] = useState<string>('');
-  const [category, setCategory] = useState<string>('');
-  const [frequency, setFrequency] = useState<RecurrenceFrequency>('monthly');
-  const [dayOfMonth, setDayOfMonth] = useState<number>(1);
-  const [startDate, setStartDate] = useState<string>(getTodayString());
-  const [endDate, setEndDate] = useState<string>('');
-  const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>('UPI');
-  const [autoLogTransaction, setAutoLogTransaction] = useState<boolean>(true);
-  const [notes, setNotes] = useState<string>('');
+  const [name, setName] = useState<string>(initialPayment?.name || '');
+  const [amountStr, setAmountStr] = useState<string>(initialPayment ? initialPayment.amount.toString() : '');
+  const [category, setCategory] = useState<string>(initialPayment?.category || categories[0]?.name || 'Bills & Utilities');
+  const [frequency, setFrequency] = useState<RecurrenceFrequency>(initialPayment?.frequency || 'monthly');
+  const [dayOfMonth, setDayOfMonth] = useState<number>(initialPayment?.dayOfMonth || new Date().getDate());
+  const [startDate, setStartDate] = useState<string>(initialPayment?.startDate || getTodayString());
+  const [endDate, setEndDate] = useState<string>(initialPayment?.endDate || '');
+  const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>(initialPayment?.paymentMethod || 'UPI');
+  const [autoLogTransaction, setAutoLogTransaction] = useState<boolean>(initialPayment ? initialPayment.autoLogTransaction : true);
+  const [notes, setNotes] = useState<string>(initialPayment?.notes || '');
   const { isSubmitting, startSubmit, reset } = useSubmitOnce();
-  const prevIsOpenRef = useRef(false);
-
-  useEffect(() => {
-    if (!isOpen) {
-      prevIsOpenRef.current = false;
-      return;
-    }
-    const isOpening = isOpen && !prevIsOpenRef.current;
-    if (isOpening) {
-      reset();
-    }
-    if (initialPayment) {
-      setName(initialPayment.name);
-      setAmountStr(initialPayment.amount.toString());
-      setCategory(initialPayment.category);
-      setFrequency(initialPayment.frequency);
-      setDayOfMonth(initialPayment.dayOfMonth || 1);
-      setStartDate(initialPayment.startDate);
-      setEndDate(initialPayment.endDate || '');
-      setPaymentMethod(initialPayment.paymentMethod || 'UPI');
-      setAutoLogTransaction(initialPayment.autoLogTransaction);
-      setNotes(initialPayment.notes || '');
-    } else {
-      setName('');
-      setAmountStr('');
-      setCategory(categories[0]?.name || 'Bills & Utilities');
-      setFrequency('monthly');
-      // Default dayOfMonth to today's day of month
-      const todayDay = new Date().getDate();
-      setDayOfMonth(todayDay);
-      setStartDate(getTodayString());
-      setEndDate('');
-      setPaymentMethod('UPI');
-      setAutoLogTransaction(true);
-      setNotes('');
-    }
-    prevIsOpenRef.current = isOpen;
-  }, [initialPayment, isOpen, categories, reset]);
 
   const parsedAmount = parseFloat(amountStr) || 0;
 
@@ -145,14 +112,7 @@ export const RecurringPaymentModal: React.FC<RecurringPaymentModalProps> = ({
   };
 
   return (
-    <Modal
-      isOpen={isOpen}
-      onClose={onClose}
-      title={initialPayment ? 'Edit Recurring Payment' : 'New Recurring Payment'}
-      subtitle="Declare a fixed recurring expense, subscription, EMI, or SIP for automatic tracking"
-      maxWidth="2xl"
-    >
-      <form onSubmit={handleSubmit} className="space-y-4">
+    <form onSubmit={handleSubmit} className="space-y-4">
         {/* Commitment Name */}
         <div>
           <label className="block text-xs font-bold uppercase tracking-wider text-ink-3 mb-1.5">
@@ -373,6 +333,31 @@ export const RecurringPaymentModal: React.FC<RecurringPaymentModalProps> = ({
           </button>
         </div>
       </form>
+  );
+};
+
+export const RecurringPaymentModal: React.FC<RecurringPaymentModalProps> = ({
+  isOpen,
+  onClose,
+  initialPayment,
+  onSave,
+}) => {
+  return (
+    <Modal
+      isOpen={isOpen}
+      onClose={onClose}
+      title={initialPayment ? 'Edit Recurring Payment' : 'New Recurring Payment'}
+      subtitle="Declare a fixed recurring expense, subscription, EMI, or SIP for automatic tracking"
+      maxWidth="2xl"
+    >
+      {isOpen && (
+        <RecurringPaymentForm
+          key={initialPayment?.id || 'new'}
+          initialPayment={initialPayment}
+          onClose={onClose}
+          onSave={onSave}
+        />
+      )}
     </Modal>
   );
 };

@@ -21,9 +21,10 @@ export function useAnimatedProgress(
   targetPercent: number,
   options?: UseAnimatedProgressOptions
 ): UseAnimatedProgressResult {
-  const clamped = Math.min(Math.max(targetPercent, 0), 100);
+  const safeTarget = Number.isFinite(targetPercent) ? targetPercent : 0;
+  const clamped = Math.min(Math.max(safeTarget, 0), 100);
   const reducedMotion = useReducedMotion();
-  const animateOnMount = options?.animateOnMount ?? false;
+  const animateOnMount = options?.animateOnMount ?? true;
   const from = options?.from ?? 0;
 
   const isFirstMount = useRef(true);
@@ -60,8 +61,8 @@ export function useAnimatedProgress(
     const duration = 250 + Math.min(distance, 100) * 3.5; // ~250ms-600ms
     const isIncreasing = clamped >= start;
     const overshoot = isIncreasing
-      ? clamped + (clamped < 100 ? 2 : 0)
-      : clamped - (clamped > 0 ? 2 : 0);
+      ? Math.min(clamped + 2, 102)
+      : Math.max(clamped - 2, 0);
 
     const startTime = performance.now();
     setIsAnimating(true);

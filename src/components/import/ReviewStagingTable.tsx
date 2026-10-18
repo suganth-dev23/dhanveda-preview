@@ -262,6 +262,11 @@ export const ReviewStagingTable: React.FC<ReviewStagingTableProps> = ({
                       onChange={e => onUpdateRow(row.tempId, { category: e.target.value })}
                       className="py-1 px-2 bg-sunken border border-line rounded-xl text-xs font-medium text-ink-1 focus:outline-none focus:ring-1 focus:ring-primary"
                     >
+                      {row.category && !categories.some(c => c.name === row.category) && (
+                        <option value={row.category}>
+                          {row.category}
+                        </option>
+                      )}
                       {categories.map(c => (
                         <option key={c.id} value={c.name}>
                           {c.name}
@@ -289,19 +294,21 @@ export const ReviewStagingTable: React.FC<ReviewStagingTableProps> = ({
                   <td className="py-3 px-3 text-right whitespace-nowrap">
                     <input
                       type="number"
-                      step="0.01"
+                      step="any"
                       min="0.01"
                       value={row.amount}
                       onChange={e => {
                         const val = parseFloat(e.target.value);
                         if (!isNaN(val) && val > 0) {
-                          onUpdateRow(row.tempId, { amount: roundCurrency(val) });
+                          onUpdateRow(row.tempId, { amount: val });
                         }
                       }}
                       onBlur={e => {
                         const val = parseFloat(e.target.value);
                         if (isNaN(val) || val <= 0) {
                           onUpdateRow(row.tempId, { amount: row.amount > 0 ? roundCurrency(row.amount) : 1 });
+                        } else {
+                          onUpdateRow(row.tempId, { amount: roundCurrency(val) });
                         }
                       }}
                       className="font-numeric tabular-nums w-24 py-1 px-2 text-right font-bold bg-sunken border border-line rounded-xl text-xs text-ink-1 focus:outline-none focus:ring-1 focus:ring-primary"

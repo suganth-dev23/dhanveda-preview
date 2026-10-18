@@ -241,7 +241,11 @@ export function getDB(): Promise<IDBPDatabase<DhanVedaDBSchema>> {
 export async function migrateFromLocalStorage(): Promise<boolean> {
   try {
     const db = await getDB();
-    const prefixes = ['dhanveda_finances_v2_', 'dhanveda_finances_v1_'];
+    const hasV2 = typeof localStorage !== 'undefined' && Object.keys(localStorage).some(k => k.startsWith('dhanveda_finances_v2_'));
+    const prefixes = hasV2 ? ['dhanveda_finances_v2_'] : ['dhanveda_finances_v1_'];
+    if (hasV2) {
+      Object.keys(localStorage).filter(k => k.startsWith('dhanveda_finances_v1_')).forEach(k => localStorage.removeItem(k));
+    }
     let migratedCount = 0;
 
     for (const prefix of prefixes) {
@@ -537,6 +541,7 @@ function hasItemChanged(a: any, b: any): boolean {
   const keysB = Object.keys(b);
   if (keysA.length !== keysB.length) return true;
   for (const key of keysA) {
+    if (!(key in b)) return true;
     const valA = a[key];
     const valB = b[key];
     if (valA === valB) continue;
@@ -665,6 +670,9 @@ export function persistDiffSync<T extends { id: string }>(
     for (const item of toPut) {
       tx.store.put(item as any);
     }
+    tx.done.catch(err => {
+      console.error(`[DB] Async transaction error in persistDiffSync for "${storeName}":`, err);
+    });
   } catch (err) {
     console.error(`[DB] Error in persistDiffSync for "${storeName}":`, err);
   }
@@ -737,9 +745,6 @@ export async function clearAllStores(): Promise<void> {
  */
 export async function addTombstone(store: SyncableStoreName, id: string): Promise<void> {
   try {
-    if (typeof localStorage !== 'undefined' && localStorage.getItem('dhanveda_drive_sync_enabled') !== 'true') {
-      return;
-    }
     const db = await getDB();
     const tombstone: TombstoneRecord & { compositeId: string } = {
       compositeId: `${store}:${id}`,

@@ -1,38 +1,11 @@
-import React, { createContext, useContext, useState, useEffect, useCallback, useMemo, useRef } from 'react';
+import React, { useState, useEffect, useLayoutEffect, useCallback, useMemo, useRef } from 'react';
 import { Badge, StreakData, FinancialHealthScore, GamificationState } from '../types/finance';
 import { ALL_BADGES, BadgeEvaluationContext } from '../constants/badges';
 import { calculateFinancialHealthScore } from '../utils/scoreCalculator';
 import { getGamificationState, saveGamificationState } from '../utils/db';
 import { getTodayString } from '../utils/date';
 import { useFinance } from './FinanceContext';
-
-interface LevelInfo {
- level: number;
- progress: number; // 0 - 100%
- xpToNext: number;
-}
-
-interface GamificationContextType {
- streak: StreakData;
- badges: Badge[];
- unlockedBadges: Badge[];
- unlockedCount: number;
- totalXP: number;
- levelInfo: LevelInfo;
- healthScore: FinancialHealthScore;
- evaluateBadges: () => void;
- recordActivity: () => void;
-}
-
-const GamificationContext = createContext<GamificationContextType | undefined>(undefined);
-
-export const useGamification = () => {
- const context = useContext(GamificationContext);
- if (!context) {
- throw new Error('useGamification must be used within a GamificationProvider');
- }
- return context;
-};
+import { GamificationContext, LevelInfo } from './GamificationContextDefs';
 
 const LEVEL_THRESHOLDS = [0, 250, 600, 1200, 2000, 3000, 4500, 6500, 9000, 12000];
 
@@ -52,9 +25,9 @@ function calculateLevelInfo(totalXP: number): LevelInfo {
 }
 
 const INITIAL_STREAK: StreakData = {
- currentStreak: 1,
- longestStreak: 1,
- lastActiveDate: getTodayString(),
+ currentStreak: 0,
+ longestStreak: 0,
+ lastActiveDate: '',
 };
 
 export const GamificationProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
@@ -90,7 +63,9 @@ export const GamificationProvider: React.FC<{ children: React.ReactNode }> = ({ 
  const unlockedBadgeDatesRef = useRef<Record<string, string>>({});
  const totalXPRef = useRef<number>(0);
  const initialSyncDoneRef = useRef(false);
- const debounceTimerRef = useRef<NodeJS.Timeout | null>(null);
+ const eventDebounceTimerRef = useRef<NodeJS.Timeout | null>(null);
+ const stateDebounceTimerRef = useRef<NodeJS.Timeout | null>(null);
+ const evaluateBadgesRef = useRef<((silent?: boolean) => void) | null>(null);
 
  // Load persisted state from IndexedDB v5
  useEffect(() => {
@@ -152,7 +127,7 @@ export const GamificationProvider: React.FC<{ children: React.ReactNode }> = ({ 
  let continued = false;
  let broken = false;
 
- if (!prev.lastActiveDate) {
+ if (!prev.lastActiveDate || prev.currentStreak === 0) {
  nextStreak = 1;
  continued = true;
  } else {
@@ -166,6 +141,8 @@ export const GamificationProvider: React.FC<{ children: React.ReactNode }> = ({ 
  } else if (diffDays > 1) {
  nextStreak = 1;
  broken = true;
+ } else if (diffDays <= 0) {
+ nextStreak = prev.currentStreak;
  }
  }
 
@@ -289,6 +266,10 @@ export const GamificationProvider: React.FC<{ children: React.ReactNode }> = ({ 
  emitFinanceEvent,
  ]);
 
+ useLayoutEffect(() => {
+  evaluateBadgesRef.current = evaluateBadges;
+ });
+
  // Subscribe to finance events for reactive evaluation
  useEffect(() => {
  if (!subscribeFinanceEvent) return;
@@ -296,7 +277,7 @@ export const GamificationProvider: React.FC<{ children: React.ReactNode }> = ({ 
  const unsubscribe = subscribeFinanceEvent((event) => {
  if (event.type === 'bulk_data_loaded') {
  suppressCelebrationsUntilRef.current = Date.now() + 3000;
- evaluateBadges(true);
+ evaluateBadgesRef.current?.(true);
  return;
  }
 
@@ -315,45 +296,45 @@ export const GamificationProvider: React.FC<{ children: React.ReactNode }> = ({ 
  }
 
  // Debounce badge evaluation for domain mutation events
- if (debounceTimerRef.current) {
- clearTimeout(debounceTimerRef.current);
+ if (eventDebounceTimerRef.current) {
+ clearTimeout(eventDebounceTimerRef.current);
  }
- debounceTimerRef.current = setTimeout(() => {
- evaluateBadges(false);
+ eventDebounceTimerRef.current = setTimeout(() => {
+ evaluateBadgesRef.current?.(false);
  }, 300);
  });
 
  return () => {
  unsubscribe();
- if (debounceTimerRef.current) {
- clearTimeout(debounceTimerRef.current);
+ if (eventDebounceTimerRef.current) {
+ clearTimeout(eventDebounceTimerRef.current);
  }
  };
- }, [subscribeFinanceEvent, recordActivity, evaluateBadges]);
+ }, [subscribeFinanceEvent, recordActivity]);
 
  // Initial silent badge sync once data is loaded & initialized
  useEffect(() => {
  if (isLoaded && isInitialized && !initialSyncDoneRef.current) {
  initialSyncDoneRef.current = true;
  // Evaluate silently so existing qualifying data doesn't spam celebrations on page load
- evaluateBadges(true);
+ evaluateBadgesRef.current?.(true);
  }
- }, [isLoaded, isInitialized, evaluateBadges]);
+ }, [isLoaded, isInitialized]);
 
  // Reactive badge evaluation when budget counts or goal items change
  useEffect(() => {
  if (!initialSyncDoneRef.current || !isLoaded || !isInitialized) return;
 
- if (debounceTimerRef.current) {
- clearTimeout(debounceTimerRef.current);
+ if (stateDebounceTimerRef.current) {
+ clearTimeout(stateDebounceTimerRef.current);
  }
- debounceTimerRef.current = setTimeout(() => {
- evaluateBadges(false);
+ stateDebounceTimerRef.current = setTimeout(() => {
+ evaluateBadgesRef.current?.(false);
  }, 400);
 
  return () => {
- if (debounceTimerRef.current) {
- clearTimeout(debounceTimerRef.current);
+ if (stateDebounceTimerRef.current) {
+ clearTimeout(stateDebounceTimerRef.current);
  }
  };
  }, [
@@ -366,14 +347,13 @@ export const GamificationProvider: React.FC<{ children: React.ReactNode }> = ({ 
  settlements.length,
  recurringPaymentLogs.length,
  isDriveConnected,
- evaluateBadges,
  ]);
 
  // Build full Badge list with live progress and unlock status
  const badges = useMemo<Badge[]>(() => {
  return ALL_BADGES.map(badgeDef => {
  const evalResult = badgeDef.evaluate(evaluationContext);
- const isUnlocked = unlockedBadgeIds.includes(badgeDef.id) || evalResult.isUnlocked;
+ const isUnlocked = unlockedBadgeIds.includes(badgeDef.id);
  return {
  id: badgeDef.id,
  name: badgeDef.name,
@@ -383,7 +363,7 @@ export const GamificationProvider: React.FC<{ children: React.ReactNode }> = ({ 
  icon: badgeDef.icon,
  xp: badgeDef.xp,
  unlockedAt: unlockedBadgeDates[badgeDef.id],
- progress: isUnlocked ? 100 : (evalResult.progress ?? 0),
+ progress: isUnlocked ? 100 : Math.min(99, evalResult.progress ?? 0),
  currentCount: evalResult.currentCount,
  targetCount: evalResult.targetCount,
  };
@@ -394,37 +374,45 @@ export const GamificationProvider: React.FC<{ children: React.ReactNode }> = ({ 
 
  const levelInfo = useMemo(() => calculateLevelInfo(totalXP), [totalXP]);
 
-  // Financial Health Score calculation
-  const [previousScore, setPreviousScore] = useState<number | undefined>(undefined);
-  const healthScore = useMemo<FinancialHealthScore>(() => {
-    const budgetedCats = categorySpendingThisMonth.filter(c => c.budget > 0);
-    return calculateFinancialHealthScore({
-      monthlySavingsRate: currentMonthSavingsRate,
-      budgetedCategories: budgetedCats,
-      emergencyFundRunwayMonths,
-      totalIOwe,
-      totalOwedToMe,
-      currentStreak: streak.currentStreak,
-      previousScore,
-    });
-  }, [
-    currentMonthSavingsRate,
-    categorySpendingThisMonth,
-    emergencyFundRunwayMonths,
-    totalIOwe,
-    totalOwedToMe,
-    streak.currentStreak,
-    previousScore,
-  ]);
+ // Financial Health Score calculation
+ const previousScoreRef = useRef<number | undefined>(undefined);
+ const [scoreTrend, setScoreTrend] = useState<FinancialHealthScore['trend']>('neutral');
 
-  useEffect(() => {
-    if (healthScore.overallScore !== previousScore) {
-      const timer = setTimeout(() => {
-        setPreviousScore(healthScore.overallScore);
-      }, 500);
-      return () => clearTimeout(timer);
-    }
-  }, [healthScore.overallScore, previousScore]);
+ const baseHealthScore = useMemo<FinancialHealthScore>(() => {
+ const budgetedCats = categorySpendingThisMonth.filter(c => c.budget > 0);
+ const score = calculateFinancialHealthScore({
+ monthlySavingsRate: currentMonthSavingsRate,
+ budgetedCategories: budgetedCats,
+ emergencyFundRunwayMonths,
+ totalIOwe,
+ totalOwedToMe,
+ currentStreak: streak.currentStreak,
+ });
+ return score;
+ }, [
+ currentMonthSavingsRate,
+ categorySpendingThisMonth,
+ emergencyFundRunwayMonths,
+ totalIOwe,
+ totalOwedToMe,
+ streak.currentStreak,
+ ]);
+
+ useEffect(() => {
+ if (previousScoreRef.current !== undefined) {
+  if (baseHealthScore.overallScore > previousScoreRef.current + 1) {
+   setScoreTrend('up');
+  } else if (baseHealthScore.overallScore < previousScoreRef.current - 1) {
+   setScoreTrend('down');
+  }
+ }
+ previousScoreRef.current = baseHealthScore.overallScore;
+ }, [baseHealthScore.overallScore]);
+
+ const healthScore = useMemo<FinancialHealthScore>(() => ({
+  ...baseHealthScore,
+  trend: scoreTrend,
+ }), [baseHealthScore, scoreTrend]);
 
  return (
  <GamificationContext.Provider

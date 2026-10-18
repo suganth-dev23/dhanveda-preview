@@ -58,8 +58,6 @@ export default defineConfig({
         ],
       },
       workbox: {
-        clientsClaim: true,
-        skipWaiting: true,
         globPatterns: ['**/*.{js,mjs,css,html,ico,png,svg,woff,woff2}'],
         globIgnores: ['**/pdf.worker*', '**/pdfParser.worker*', '**/vendor-pdf*', '**/StatementImportView*', '**/PieChart*'],
         maximumFileSizeToCacheInBytes: 3500000,

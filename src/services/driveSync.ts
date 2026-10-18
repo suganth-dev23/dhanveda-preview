@@ -416,7 +416,9 @@ export class DriveSyncService {
           if (!isSkewTied) {
             if (diffMs > 0) mergedTombstonesMap.set(key, t);
           } else {
-            if (t.deletedAt > existing.deletedAt) {
+            const tEpoch = new Date(t.deletedAt).getTime();
+            const existEpoch = new Date(existing.deletedAt).getTime();
+            if (tEpoch > existEpoch) {
               mergedTombstonesMap.set(key, t);
             }
           }
@@ -511,7 +513,32 @@ export class DriveSyncService {
       });
       const mergedCategories = mergeArrayStore('categories', localCategories, remotePayload.stores.categories || []);
       const mergedBudgets = mergeArrayStore('budgets', localBudgets, remotePayload.stores.budgets || []);
-      const mergedInvestments = mergeArrayStore('investments', localInvestments, remotePayload.stores.investments || []);
+      const rawMergedInvestments = mergeArrayStore('investments', localInvestments, remotePayload.stores.investments || []);
+      const localInvestmentsMap = new Map((localInvestments || []).map(i => [i.id, i]));
+      const remoteInvestmentsMap = new Map((remotePayload.stores.investments || []).map(i => [i.id, i]));
+      const mergedInvestments = rawMergedInvestments.map(inv => {
+        const localInv = localInvestmentsMap.get(inv.id);
+        const remoteInv = remoteInvestmentsMap.get(inv.id);
+        if (localInv && remoteInv) {
+          const logMap = new Map<string, any>();
+          for (const l of [...(localInv.logs || []), ...(remoteInv.logs || [])]) {
+            if (!l) continue;
+            const key = l.id || `${l.date}-${l.investedDelta}-${l.valueDelta}`;
+            if (!logMap.has(key)) {
+              logMap.set(key, l);
+            }
+          }
+          const mergedLogs = Array.from(logMap.values())
+            .sort((a, b) => (b.date || '').localeCompare(a.date || ''));
+          return {
+            ...inv,
+            createdAt: localInv.createdAt || remoteInv.createdAt || inv.createdAt,
+            startDate: localInv.startDate || remoteInv.startDate || inv.startDate,
+            logs: mergedLogs,
+          };
+        }
+        return inv;
+      });
       const mergedDreamsBase = mergeArrayStore('dreams', localDreams, remotePayload.stores.dreams || []);
       // Reconcile nested contribution arrays for each dream goal so contributions from neither device are clobbered
       const localDreamsMap = new Map((localDreams || []).map(d => [d.id, d]));
@@ -530,8 +557,8 @@ export class DriveSyncService {
             } else {
               const cTime = c.updatedAt || c.createdAt || '1970-01-01';
               const eTime = existing.updatedAt || existing.createdAt || '1970-01-01';
-              const { diffMs, isSkewTied } = compareTimestampsWithSkew(cTime, eTime);
-              if (!isSkewTied ? diffMs > 0 : cTime > eTime) {
+              const { diffMs } = compareTimestampsWithSkew(cTime, eTime);
+              if (diffMs > 0) {
                 contribMap.set(key, c);
               }
             }
@@ -587,8 +614,8 @@ export class DriveSyncService {
           } else {
             const cTime = c.updatedAt || c.createdAt || '1970-01-01';
             const eTime = existing.updatedAt || existing.createdAt || '1970-01-01';
-            const { diffMs: cDiff, isSkewTied: cSkew } = compareTimestampsWithSkew(cTime, eTime);
-            if (!cSkew ? cDiff > 0 : cTime > eTime) {
+            const { diffMs: cDiff } = compareTimestampsWithSkew(cTime, eTime);
+            if (cDiff > 0) {
               contribMap.set(key, c);
             }
           }
@@ -596,9 +623,10 @@ export class DriveSyncService {
         const mergedContributions = Array.from(contribMap.values())
           .sort((a, b) => (b.date || '').localeCompare(a.date || ''));
 
-        // Recompute currentSaved from merged contributions
+        // Recompute currentSaved from merged contributions replayed in chronological order
+        const chronologicalContribs = [...mergedContributions].sort((a, b) => (a.date || '').localeCompare(b.date || ''));
         let calculatedSaved = 0;
-        mergedContributions.forEach(c => {
+        chronologicalContribs.forEach(c => {
           if (c.type === 'deposit') calculatedSaved += Number(c.amount) || 0;
           else calculatedSaved = Math.max(0, calculatedSaved - (Number(c.amount) || 0));
         });
@@ -662,25 +690,7 @@ export class DriveSyncService {
         apiKey: localKey, // Safely preserved!
       };
 
-      // 4. Save merged results to local IndexedDB
-      await Promise.all([
-        saveAllToStore('transactions', mergedTransactions),
-        saveAllToStore('categories', mergedCategories),
-        saveAllToStore('budgets', mergedBudgets),
-        saveAllToStore('investments', mergedInvestments),
-        saveAllToStore('dreams', mergedDreams),
-        saveAllToStore('contacts', mergedContacts),
-        saveAllToStore('settlements', mergedSettlements),
-        saveAllToStore('aiReports', mergedAiReports),
-        saveAllToStore('recurringPayments', mergedRecurringPayments),
-        saveAllToStore('recurringPaymentLogs', mergedRecurringPaymentLogs),
-        saveSingleRecord('emergencyFund', mergedEmergency),
-        saveSingleRecord('userPreferences', mergedPrefs),
-        saveSingleRecord('aiSettings', mergedAISettings),
-        saveTombstones(mergedTombstones),
-      ]);
-
-      // 5. Upload consolidated snapshot back to Google Drive
+      // 4. Upload consolidated snapshot to Google Drive first (Two-Phase Commit safety)
       const consolidatedPayload: SyncPayload = {
         version: 3,
         deviceId: localDeviceId,
@@ -710,6 +720,24 @@ export class DriveSyncService {
       };
 
       await this.uploadSyncFile(consolidatedPayload, token);
+
+      // 5. Commit merged results to local IndexedDB only after remote upload succeeds
+      await Promise.all([
+        saveAllToStore('transactions', mergedTransactions),
+        saveAllToStore('categories', mergedCategories),
+        saveAllToStore('budgets', mergedBudgets),
+        saveAllToStore('investments', mergedInvestments),
+        saveAllToStore('dreams', mergedDreams),
+        saveAllToStore('contacts', mergedContacts),
+        saveAllToStore('settlements', mergedSettlements),
+        saveAllToStore('aiReports', mergedAiReports),
+        saveAllToStore('recurringPayments', mergedRecurringPayments),
+        saveAllToStore('recurringPaymentLogs', mergedRecurringPaymentLogs),
+        saveSingleRecord('emergencyFund', mergedEmergency),
+        saveSingleRecord('userPreferences', mergedPrefs),
+        saveSingleRecord('aiSettings', mergedAISettings),
+        saveTombstones(mergedTombstones),
+      ]);
 
       this.lastSyncedAt = new Date().toISOString();
       localStorage.setItem('dhanveda_last_synced_at', this.lastSyncedAt);

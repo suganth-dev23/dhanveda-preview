@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useState, useEffect, useLayoutEffect, useMemo, useCallback, useRef } from 'react';
+import React, { useState, useEffect, useLayoutEffect, useMemo, useCallback, useRef } from 'react';
 import {
  Transaction,
  Category,
@@ -14,6 +14,7 @@ import {
  SyncStatus,
  RecurringPayment,
  RecurringPaymentLog,
+ PaymentMethod,
  OwedDirection,
  SyncableStoreName,
 } from '../types/finance';
@@ -65,224 +66,20 @@ import { PERSIST_MODE } from '../constants/uiFlags';
 import { googleAuthService } from '../services/googleAuth';
 import { driveSyncService } from '../services/driveSync';
 
-export type AppView = 
- | 'dashboard'
- | 'transactions'
- | 'budgets'
- | 'recurring'
- | 'categories'
- | 'emergency'
- | 'investments'
- | 'dreams'
- | 'people'
- | 'ai'
- | 'import'
- | 'settings'
- | 'badges';
-
-export type FinanceEvent =
- | { type: 'transaction_added'; tx: Transaction; silent?: boolean }
- | { type: 'transaction_deleted'; count: number }
- | { type: 'budget_exceeded'; category: string; spent: number; limit: number }
- | { type: 'dream_contributed'; dreamId: string; dreamName: string; amount: number; isCompleted: boolean }
- | { type: 'dream_completed'; dream: DreamGoal }
- | { type: 'emergency_contributed'; amount: number; fundType: 'deposit' | 'withdrawal'; isFullyFunded: boolean }
- | { type: 'recurring_paid'; paymentName: string; amount: number }
- | { type: 'settlement_recorded'; contactName: string; amount: number; allSettled: boolean }
- | { type: 'investment_updated'; totalValue: number }
- | { type: 'streak_continued'; days: number }
- | { type: 'streak_broken' }
- | { type: 'badge_earned'; badge: { id: string; name: string; description: string; icon: string } }
- | { type: 'recurring_overdue_detected'; count: number; paymentName?: string }
- | { type: 'bulk_data_loaded' };
-
-export type FinanceEventListener = (event: FinanceEvent) => void;
-
-export interface FinanceUiContextType {
- currentView: AppView;
- setCurrentView: (view: AppView) => void;
- darkMode: boolean;
- setDarkMode: (val: boolean | ((prev: boolean) => boolean)) => void;
- isInitialized: boolean;
- unreadableRecordCount: number;
- dismissUnreadableBanner: () => void;
- isUnreadableBannerDismissed: boolean;
- saveError: string | null;
- retrySave: () => void;
- clearSaveError: () => void;
-  crossTabStale: boolean;
-  dismissCrossTabStale: () => void;
-}
-
-export interface DeleteTransactionSnapshot {
- transaction: Transaction;
- settlements: SettlementRecord[];
- tombstoneIds: Array<{ store: SyncableStoreName; id: string }>;
- tombstones?: Array<{ store: SyncableStoreName; id: string }>;
-}
-
-export interface FinanceActionsContextType {
- // Event Pub/Sub
- subscribeFinanceEvent: (listener: FinanceEventListener) => () => void;
- emitFinanceEvent: (event: FinanceEvent) => void;
-
- // Google Drive Cross-Device Sync
- triggerSync: (showFeedback?: boolean) => Promise<boolean>;
- connectDrive: () => Promise<boolean>;
- disconnectDrive: () => Promise<void>;
- reloadFromDB: () => Promise<void>;
-
- // Transactions CRUD
- addTransaction: (tx: Omit<Transaction, 'id' | 'createdAt'>, options?: { silent?: boolean }) => Transaction;
- addMultipleTransactions: (txs: Omit<Transaction, 'id' | 'createdAt'>[]) => void;
- updateTransaction: (id: string, tx: Partial<Transaction>) => void;
- deleteTransaction: (id: string) => void;
- deleteMultipleTransactions: (ids: string[]) => void;
- captureDeleteSnapshot: (id: string) => DeleteTransactionSnapshot | null;
- restoreTransactions: (snapshots: DeleteTransactionSnapshot[]) => void;
-
- // Contacts & Splits CRUD
- addContact: (contact: Omit<Contact, 'id' | 'createdAt'>) => Contact;
- updateContact: (id: string, contact: Partial<Contact>) => void;
- deleteContact: (id: string) => void;
- recordSettlement: (
-  contactId: string,
-  amount: number,
-  note?: string,
-  date?: string,
-  sourceTransactionId?: string,
-  sourceSplitEntryId?: string,
-  linkedTransactionId?: string,
-  direction?: OwedDirection
- ) => SettlementRecord;
- updateSettlement: (id: string, updated: Partial<SettlementRecord>) => void;
- deleteSettlement: (id: string) => void;
- linkSettlementToTransaction: (settlementId: string, transactionId?: string) => void;
- quickToggleSettleTransaction: (transactionId: string, splitEntryId?: string) => SettlementRecord | undefined;
- assignSplitToContact: (transactionId: string, splitEntryId: string, contactId: string) => void;
- settleSplitEntry: (
-  transactionId: string,
-  splitEntryId: string,
-  options: {
-   settled: boolean;
-   settledAmount?: number;
-   linkedTransactionId?: string;
-   note?: string;
-   date?: string;
-  }
- ) => SettlementRecord | undefined;
-
- // Categories CRUD
- addCategory: (cat: Omit<Category, 'id'>) => Category;
- updateCategory: (id: string, cat: Partial<Category>) => void;
- deleteCategory: (id: string) => void;
-
- // Budgets CRUD
- setBudgetForCategory: (category: string, monthlyLimit: number) => void;
- deleteBudget: (id: string) => void;
-
- // Emergency Fund
- updateEmergencySettings: (targetMonths: number, manualTargetAmount?: number) => void;
- addEmergencyContribution: (amount: number, type: 'deposit' | 'withdrawal', note?: string, date?: string) => void;
-
- // Investments CRUD
- addInvestment: (inv: Omit<Investment, 'id' | 'lastUpdated'>) => Investment;
- updateInvestment: (id: string, inv: Partial<Investment>) => void;
- deleteInvestment: (id: string) => void;
-
- // Dreams CRUD
- addDream: (dream: Omit<DreamGoal, 'id' | 'createdAt' | 'contributions' | 'currentSaved'> & { initialSaved?: number }) => DreamGoal;
- updateDream: (id: string, dream: Partial<DreamGoal>) => void;
- deleteDream: (id: string) => void;
- addDreamContribution: (dreamId: string, amount: number, note?: string, date?: string) => void;
-
- // Recurring Payments CRUD
- addRecurringPayment: (payment: Omit<RecurringPayment, 'id' | 'createdAt' | 'updatedAt'>) => RecurringPayment;
- updateRecurringPayment: (id: string, payment: Partial<RecurringPayment>) => void;
- deleteRecurringPayment: (id: string) => void;
- pauseRecurringPayment: (id: string) => void;
- markRecurringPaymentPaid: (
-  recurringPaymentId: string,
-  dueDate: string,
-  actualAmount?: number,
-  linkedTransactionId?: string,
-  createTransaction?: boolean
- ) => void;
-
- // Preferences
- toggleNotRecurring: (txId: string | string[]) => void;
-
- // AI
- updateAISettings: (settings: Partial<AISettings>) => void;
- saveAIReport: (report: Omit<AIHealthReport, 'id' | 'createdAt'>) => void;
- deleteAIReport: (id: string) => void;
- getAggregatesForAI: () => FinancialAggregates;
-
- // Backup & Reset
- resetToDemoData: () => void;
- clearAllData: () => void;
- exportBackupJSON: () => string;
- importBackupJSON: (
-   jsonStr: string,
-   options?: {
-     onToast?: (variant: 'success' | 'danger' | 'warning' | 'info', title: string, message?: string, duration?: number, action?: { label: string; onClick: () => void }) => void;
-   }
- ) => boolean;
-}
-
-export interface FinanceDataContextType {
- transactions: Transaction[];
- categories: Category[];
- budgets: Budget[];
- emergencyFund: EmergencyFund;
- investments: Investment[];
- dreams: DreamGoal[];
- contacts: Contact[];
- settlements: SettlementRecord[];
- recurringPayments: RecurringPayment[];
- recurringPaymentLogs: RecurringPaymentLog[];
- aiSettings: AISettings;
- aiReports: AIHealthReport[];
- notRecurringTxIds: Set<string>;
-
- // Google Drive Cross-Device Sync
- syncStatus: SyncStatus;
- lastSyncedAt: string | null;
- syncError: string | null;
- isDriveConnected: boolean;
- driveUserEmail: string | null;
-
- // Calculated Metrics
- totalBalance: number;
- totalNetWorth: number;
- netSharedBalance: number;
- peerBalanceSummary: {
-  totalOwedToMe: number;
-  totalIOwe: number;
-  net: number;
-  displayText: string;
- };
- currentMonthIncome: number;
- currentMonthExpense: number;
- currentMonthNet: number;
- currentMonthSavingsRate: number;
- totalInvestedAmount: number;
- totalInvestmentValue: number;
- totalInvestmentGainLoss: number;
- totalInvestmentGainLossPct: number;
- emergencyFundRunwayMonths: number;
- totalGoalsTarget: number;
- totalGoalsSaved: number;
- contactBalances: ContactBalance[];
- totalOwedToMe: number;
- totalIOwe: number;
- categorySpendingThisMonth: { category: string; spent: number; budget: number; percentUsed: number; color: string; icon: string }[];
- upcomingRecurringPayments: Array<RecurringPayment & { nextDueDate: string; daysUntilDue: number }>;
- overdueRecurringPayments: Array<RecurringPayment & { dueDate: string; daysOverdue: number }>;
- totalMonthlyRecurringCommitment: number;
-}
-
-export interface FinanceContextType extends FinanceUiContextType, FinanceActionsContextType, FinanceDataContextType {}
+import {
+  AppView,
+  FinanceEvent,
+  FinanceEventListener,
+  FinanceUiContextType,
+  DeleteTransactionSnapshot,
+  FinanceActionsContextType,
+  FinanceDataContextType,
+  FinanceContextType,
+  FinanceContext,
+  FinanceUiContext,
+  FinanceActionsContext,
+  FinanceDataContext,
+} from './FinanceContextDefs';
 
 const SESSION_TAB_ID = typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function'
   ? crypto.randomUUID()
@@ -297,35 +94,6 @@ function broadcastDataChange(store: string) {
     } catch {}
   }
 }
-
-export const FinanceContext = createContext<FinanceContextType | undefined>(undefined);
-export const FinanceUiContext = createContext<FinanceUiContextType | undefined>(undefined);
-export const FinanceActionsContext = createContext<FinanceActionsContextType | undefined>(undefined);
-export const FinanceDataContext = createContext<FinanceDataContextType | undefined>(undefined);
-
-export const useFinanceUi = () => {
-  const context = useContext(FinanceUiContext);
-  if (!context) {
-    throw new Error('useFinanceUi must be used within a FinanceProvider');
-  }
-  return context;
-};
-
-export const useFinanceActions = () => {
-  const context = useContext(FinanceActionsContext);
-  if (!context) {
-    throw new Error('useFinanceActions must be used within a FinanceProvider');
-  }
-  return context;
-};
-
-export const useFinanceData = () => {
-  const context = useContext(FinanceDataContext);
-  if (!context) {
-    throw new Error('useFinanceData must be used within a FinanceProvider');
-  }
-  return context;
-};
 
 const EMPTY_EMERGENCY_FUND: EmergencyFund = {
  targetMonths: 6,
@@ -388,6 +156,15 @@ export const FinanceProvider: React.FC<{ children: React.ReactNode }> = ({ child
  const dreamsRef = useRef(dreams);
  const recurringPaymentsRef = useRef(recurringPayments);
  const recurringPaymentLogsRef = useRef(recurringPaymentLogs);
+ const aiReportsRef = useRef(aiReports);
+ const aiSettingsRef = useRef(aiSettings);
+ const notRecurringTxIdsRef = useRef(notRecurringTxIds);
+ const darkModeRef = useRef(darkMode);
+
+ useEffect(() => { aiReportsRef.current = aiReports; }, [aiReports]);
+ useEffect(() => { aiSettingsRef.current = aiSettings; }, [aiSettings]);
+ useEffect(() => { notRecurringTxIdsRef.current = notRecurringTxIds; }, [notRecurringTxIds]);
+ useEffect(() => { darkModeRef.current = darkMode; }, [darkMode]);
 
   // Previous persisted state refs for diff-based persistence
   const prevTransactionsRef = useRef<Transaction[]>(transactions);
@@ -757,8 +534,29 @@ export const FinanceProvider: React.FC<{ children: React.ReactNode }> = ({ child
     let totalInvalid = 0;
 
     if (dbTx && Array.isArray(dbTx)) {
-      const { valid: validTx, invalidCount } = validateStoreRecords(dbTx, normalizeTransaction);
+      let { valid: validTx, invalidCount } = validateStoreRecords(dbTx, normalizeTransaction);
       totalInvalid += invalidCount;
+
+      // Auto-backfill demo dataset if historical months (May, Jun, Jul 2026) are missing
+      const isDemoDataset = validTx.some(t => t.id === 'tx-1' || t.id === 'tx-2');
+      const hasHistoricalTxs = validTx.some(t => t.id === 'tx-26' || t.id === 'tx-35' || t.id === 'tx-47');
+      if (isDemoDataset && !hasHistoricalTxs) {
+        const rebased = rebaseDemoData({
+          transactions: INITIAL_TRANSACTIONS,
+          emergencyFund: EMPTY_EMERGENCY_FUND,
+          investments: [],
+          dreams: [],
+          recurringPayments: [],
+          recurringPaymentLogs: [],
+        });
+        const existingIds = new Set(validTx.map(t => t.id));
+        const missingDemoTxs = rebased.transactions.filter(t => !existingIds.has(t.id));
+        if (missingDemoTxs.length > 0) {
+          validTx = [...validTx, ...missingDemoTxs].sort((a, b) => (b.date || '').localeCompare(a.date || ''));
+          saveAllToStore('transactions', validTx).catch(console.error);
+        }
+      }
+
       setTransactions(validTx);
       transactionsRef.current = validTx;
       prevTransactionsRef.current = validTx;
@@ -890,7 +688,15 @@ export const FinanceProvider: React.FC<{ children: React.ReactNode }> = ({ child
  saveAllToStore('dreams', dreamsRef.current),
  saveAllToStore('recurringPayments', recurringPaymentsRef.current),
  saveAllToStore('recurringPaymentLogs', recurringPaymentLogsRef.current),
+ saveAllToStore('aiReports', aiReportsRef.current || []),
  saveSingleRecord('emergencyFund', { ...emergencyFundRef.current, id: 'current' }),
+ saveSingleRecord('userPreferences', {
+  id: 'general',
+  darkMode: darkModeRef.current,
+  notRecurringTxIds: Array.from(notRecurringTxIdsRef.current || []),
+  updatedAt: new Date().toISOString(),
+ }),
+ saveSingleRecord('aiSettings', { ...aiSettingsRef.current, id: 'current' }),
  ]);
 
  const ok = await driveSyncService.sync();
@@ -1186,18 +992,11 @@ export const FinanceProvider: React.FC<{ children: React.ReactNode }> = ({ child
       // Check multi-split reconciliation
       if (s.reconciledSplits && s.reconciledSplits.length > 0) {
         const remainingSplits = s.reconciledSplits.filter(r => r.transactionId !== id);
-        if (remainingSplits.length === 0 && (s.sourceTransactionId === id || !s.sourceTransactionId)) {
-          // All reconciled splits belonged to this deleted transaction -> delete settlement
-          addTombstone('settlements', s.id);
-          return;
-        }
-
         const hasSplitChanged = remainingSplits.length !== s.reconciledSplits.length;
         const hasLinkedChanged = s.linkedTransactionId === id;
         const hasSourceChanged = s.sourceTransactionId === id;
 
         if (hasSplitChanged || hasLinkedChanged || hasSourceChanged) {
-          // Partial removal: some splits remain on other transactions or links changed
           const nextSourceTx = hasSourceChanged
             ? (remainingSplits[0]?.transactionId || undefined)
             : s.sourceTransactionId;
@@ -1221,16 +1020,19 @@ export const FinanceProvider: React.FC<{ children: React.ReactNode }> = ({ child
         return;
       }
 
-      // Legacy single-split settlement
-      if (s.sourceTransactionId === id) {
-        addTombstone('settlements', s.id);
-        return;
-      }
-
-      if (s.linkedTransactionId === id) {
+      // Single-split settlement: detach references rather than erasing settlement audit record
+      if (s.sourceTransactionId === id || s.linkedTransactionId === id) {
+        // If this settlement was created specifically to settle a split on the deleted transaction,
+        // and has no independent ledger link, remove it so it doesn't invert contact balance as a ghost debt.
+        if (s.sourceTransactionId === id && !s.linkedTransactionId) {
+          addTombstone('settlements', s.id);
+          return;
+        }
         updatedSettlements.push({
           ...s,
-          linkedTransactionId: undefined,
+          sourceTransactionId: s.sourceTransactionId === id ? undefined : s.sourceTransactionId,
+          sourceSplitEntryId: s.sourceTransactionId === id ? undefined : s.sourceSplitEntryId,
+          linkedTransactionId: s.linkedTransactionId === id ? undefined : s.linkedTransactionId,
           updatedAt: now,
         });
         return;
@@ -1259,11 +1061,6 @@ export const FinanceProvider: React.FC<{ children: React.ReactNode }> = ({ child
     settlementsRef.current.forEach(s => {
       if (s.reconciledSplits && s.reconciledSplits.length > 0) {
         const remainingSplits = s.reconciledSplits.filter(r => !set.has(r.transactionId));
-        if (remainingSplits.length === 0 && (s.sourceTransactionId ? set.has(s.sourceTransactionId) : true)) {
-          addTombstone('settlements', s.id);
-          return;
-        }
-
         const hasSplitChanged = remainingSplits.length !== s.reconciledSplits.length;
         const hasLinkedChanged = Boolean(s.linkedTransactionId && set.has(s.linkedTransactionId));
         const hasSourceChanged = Boolean(s.sourceTransactionId && set.has(s.sourceTransactionId));
@@ -1292,15 +1089,16 @@ export const FinanceProvider: React.FC<{ children: React.ReactNode }> = ({ child
         return;
       }
 
-      if (s.sourceTransactionId && set.has(s.sourceTransactionId)) {
-        addTombstone('settlements', s.id);
-        return;
-      }
-
-      if (s.linkedTransactionId && set.has(s.linkedTransactionId)) {
+      if ((s.sourceTransactionId && set.has(s.sourceTransactionId)) || (s.linkedTransactionId && set.has(s.linkedTransactionId))) {
+        if (s.sourceTransactionId && set.has(s.sourceTransactionId) && (!s.linkedTransactionId || set.has(s.linkedTransactionId))) {
+          addTombstone('settlements', s.id);
+          return;
+        }
         updatedSettlements.push({
           ...s,
-          linkedTransactionId: undefined,
+          sourceTransactionId: s.sourceTransactionId && set.has(s.sourceTransactionId) ? undefined : s.sourceTransactionId,
+          sourceSplitEntryId: s.sourceTransactionId && set.has(s.sourceTransactionId) ? undefined : s.sourceSplitEntryId,
+          linkedTransactionId: s.linkedTransactionId && set.has(s.linkedTransactionId) ? undefined : s.linkedTransactionId,
           updatedAt: now,
         });
         return;
@@ -1312,6 +1110,7 @@ export const FinanceProvider: React.FC<{ children: React.ReactNode }> = ({ child
 
  settlementsRef.current = updatedSettlements;
  setSettlements(updatedSettlements);
+ flushPendingSync();
  emitFinanceEvent({ type: 'transaction_deleted', count: ids.length });
  };
 
@@ -1559,7 +1358,7 @@ export const FinanceProvider: React.FC<{ children: React.ReactNode }> = ({ child
  };
  settlementsRef.current = [newSettlement, ...settlementsRef.current];
  setSettlements(prev => [newSettlement, ...prev]);
- const contact = contacts.find(c => c.id === contactId);
+ const contact = contactsRef.current.find(c => c.id === contactId);
  emitFinanceEvent({
  type: 'settlement_recorded',
  contactName: contact ? contact.name : 'Contact',
@@ -1622,6 +1421,7 @@ export const FinanceProvider: React.FC<{ children: React.ReactNode }> = ({ child
  transactionsRef.current = updatedTxs;
  setTransactions(updatedTxs);
  }
+ flushPendingSync();
  };
 
  const updateSettlement = (id: string, updated: Partial<SettlementRecord>) => {
@@ -1654,7 +1454,7 @@ export const FinanceProvider: React.FC<{ children: React.ReactNode }> = ({ child
  transactionId: string,
  splitEntryId?: string
  ): SettlementRecord | undefined => {
- const tx = transactions.find(t => t.id === transactionId);
+ const tx = transactionsRef.current.find(t => t.id === transactionId);
  if (!tx || !tx.splitWith || !Array.isArray(tx.splitWith)) return undefined;
 
  const targetEntryId = splitEntryId || tx.splitWith[0]?.id;
@@ -1669,7 +1469,7 @@ export const FinanceProvider: React.FC<{ children: React.ReactNode }> = ({ child
  if (!isCurrentlySettled) {
  // 1. Mark that specific splitEntry as settled
  const updatedSplits = tx.splitWith.map(e =>
- e.id === targetEntryId ? { ...e, settled: true } : e
+ e.id === targetEntryId ? { ...e, settled: true, settledAmount: e.amount } : e
  );
  updateTransaction(transactionId, { splitWith: updatedSplits, updatedAt: now });
 
@@ -1689,7 +1489,7 @@ export const FinanceProvider: React.FC<{ children: React.ReactNode }> = ({ child
  };
  settlementsRef.current = [newSettlement, ...settlementsRef.current];
  setSettlements(prev => [newSettlement, ...prev]);
- const contact = contacts.find(c => c.id === targetEntry.contactId);
+ const contact = contactsRef.current.find(c => c.id === targetEntry.contactId);
  emitFinanceEvent({
  type: 'settlement_recorded',
  contactName: contact ? contact.name : 'Contact',
@@ -1702,12 +1502,12 @@ export const FinanceProvider: React.FC<{ children: React.ReactNode }> = ({ child
  } else {
  // 1. Mark that specific splitEntry as unsettled
  const updatedSplits = tx.splitWith.map(e =>
- e.id === targetEntryId ? { ...e, settled: false } : e
+ e.id === targetEntryId ? { ...e, settled: false, settledAmount: undefined } : e
  );
  updateTransaction(transactionId, { splitWith: updatedSplits, updatedAt: now });
 
  // 2. Remove the auto-created settlement record strictly matching this split entry
- const toDelete = settlements.find(
+ const toDelete = settlementsRef.current.find(
  s =>
  s.sourceTransactionId === transactionId &&
  s.sourceSplitEntryId === targetEntryId
@@ -1726,7 +1526,7 @@ export const FinanceProvider: React.FC<{ children: React.ReactNode }> = ({ child
  splitEntryId: string,
  contactId: string
  ) => {
- const tx = transactions.find(t => t.id === transactionId);
+ const tx = transactionsRef.current.find(t => t.id === transactionId);
  if (!tx || !tx.splitWith || !Array.isArray(tx.splitWith)) return;
 
  const now = new Date().toISOString();
@@ -1753,7 +1553,7 @@ export const FinanceProvider: React.FC<{ children: React.ReactNode }> = ({ child
  date?: string;
  }
  ): SettlementRecord | undefined => {
- const tx = transactions.find(t => t.id === transactionId);
+ const tx = transactionsRef.current.find(t => t.id === transactionId);
  if (!tx || !tx.splitWith || !Array.isArray(tx.splitWith)) return undefined;
 
  const targetEntry = tx.splitWith.find(e => e.id === splitEntryId);
@@ -1784,7 +1584,7 @@ export const FinanceProvider: React.FC<{ children: React.ReactNode }> = ({ child
 
  // 2. If attached to a contact, record or update SettlementRecord
  if (targetEntry.contactId) {
- const existingSettlement = settlements.find(
+ const existingSettlement = settlementsRef.current.find(
  s =>
  s.sourceTransactionId === transactionId &&
  s.sourceSplitEntryId === splitEntryId
@@ -1818,7 +1618,7 @@ export const FinanceProvider: React.FC<{ children: React.ReactNode }> = ({ child
  };
  settlementsRef.current = [newSettlement, ...settlementsRef.current];
  setSettlements(prev => [newSettlement, ...prev]);
- const contact = contacts.find(c => c.id === targetEntry.contactId);
+ const contact = contactsRef.current.find(c => c.id === targetEntry.contactId);
  emitFinanceEvent({
  type: 'settlement_recorded',
  contactName: contact ? contact.name : 'Contact',
@@ -1844,7 +1644,7 @@ export const FinanceProvider: React.FC<{ children: React.ReactNode }> = ({ child
  updateTransaction(transactionId, { splitWith: updatedSplits, updatedAt: now });
 
  // Remove auto-created settlement record strictly matching this splitEntryId
- const toDelete = settlements.find(
+ const toDelete = settlementsRef.current.find(
  s =>
  s.sourceTransactionId === transactionId &&
  s.sourceSplitEntryId === splitEntryId
@@ -2011,15 +1811,18 @@ export const FinanceProvider: React.FC<{ children: React.ReactNode }> = ({ child
  // Investments operations
  const addInvestment = (invData: Omit<Investment, 'id' | 'lastUpdated'>): Investment => {
  const now = new Date().toISOString();
+ const today = now.split('T')[0];
  const newInv: Investment = {
  ...invData,
  id: `inv-${Date.now()}`,
- lastUpdated: now.split('T')[0],
+ startDate: invData.startDate || today,
+ createdAt: invData.createdAt || now,
+ lastUpdated: today,
  updatedAt: now,
  logs: [
  {
  id: `log-${Date.now()}`,
- date: now.split('T')[0],
+ date: today,
  investedDelta: invData.investedAmount,
  valueDelta: invData.currentValue,
  note: 'Initial holding created',
@@ -2033,28 +1836,36 @@ export const FinanceProvider: React.FC<{ children: React.ReactNode }> = ({ child
 
  const updateInvestment = (id: string, updated: Partial<Investment>) => {
  const now = new Date().toISOString();
- investmentsRef.current = investmentsRef.current.map(i =>
- i.id === id
- ? {
+ const today = now.split('T')[0];
+ const mapInv = (i: Investment): Investment => {
+ if (i.id !== id) return i;
+ const invDelta = updated.investedAmount !== undefined ? updated.investedAmount - i.investedAmount : 0;
+ const valDelta = updated.currentValue !== undefined ? updated.currentValue - i.currentValue : 0;
+ let newLogs = i.logs || [];
+ if (Math.abs(invDelta) > 0.01 || Math.abs(valDelta) > 0.01) {
+ newLogs = [
+ ...newLogs,
+ {
+ id: `log-${Date.now()}-${Math.random().toString(36).substring(2, 6)}`,
+ date: today,
+ investedDelta: invDelta,
+ valueDelta: valDelta,
+ note: updated.notes || 'Valuation updated',
+ },
+ ];
+ }
+ return {
  ...i,
  ...updated,
- lastUpdated: now.split('T')[0],
+ createdAt: i.createdAt || i.logs?.[0]?.date || i.lastUpdated,
+ startDate: i.startDate || updated.startDate,
+ lastUpdated: today,
  updatedAt: now,
- }
- : i
- );
- setInvestments(prev =>
- prev.map(i =>
- i.id === id
- ? {
- ...i,
- ...updated,
- lastUpdated: now.split('T')[0],
- updatedAt: now,
- }
- : i
- )
- );
+ logs: newLogs,
+ };
+ };
+ investmentsRef.current = investmentsRef.current.map(mapInv);
+ setInvestments(prev => prev.map(mapInv));
  };
 
  const deleteInvestment = (id: string) => {
@@ -2143,9 +1954,9 @@ export const FinanceProvider: React.FC<{ children: React.ReactNode }> = ({ child
  dreamsRef.current = dreamUpdater(dreamsRef.current);
  setDreams(dreamUpdater);
 
- const targetDream = dreams.find(d => d.id === dreamId);
+ const targetDream = dreamsRef.current.find(d => d.id === dreamId);
  if (targetDream) {
- const isCompleted = (targetDream.currentSaved + amount) >= targetDream.targetAmount;
+ const isCompleted = targetDream.currentSaved >= targetDream.targetAmount;
  emitFinanceEvent({
  type: 'dream_contributed',
  dreamId,
@@ -2156,10 +1967,7 @@ export const FinanceProvider: React.FC<{ children: React.ReactNode }> = ({ child
  if (isCompleted) {
  emitFinanceEvent({
  type: 'dream_completed',
- dream: {
- ...targetDream,
- currentSaved: targetDream.currentSaved + amount,
- },
+ dream: targetDream,
  });
  }
  }
@@ -2193,7 +2001,7 @@ export const FinanceProvider: React.FC<{ children: React.ReactNode }> = ({ child
 
  const deleteRecurringPayment = (id: string) => {
  addTombstone('recurringPayments', id);
- const logsToDelete = recurringPaymentLogs.filter(l => l.recurringPaymentId === id);
+ const logsToDelete = recurringPaymentLogsRef.current.filter(l => l.recurringPaymentId === id);
  logsToDelete.forEach(l => addTombstone('recurringPaymentLogs', l.id));
 
  recurringPaymentsRef.current = recurringPaymentsRef.current.filter(p => p.id !== id);
@@ -2213,53 +2021,86 @@ export const FinanceProvider: React.FC<{ children: React.ReactNode }> = ({ child
  };
 
  const markRecurringPaymentPaid = (
- recurringPaymentId: string,
- dueDate: string,
- actualAmount?: number,
- linkedTransactionId?: string,
- createTransaction?: boolean
+  recurringPaymentId: string,
+  dueDate: string,
+  actualAmount?: number,
+  linkedTransactionId?: string,
+  createTransaction?: boolean,
+  paymentMethod?: PaymentMethod,
+  paidDate?: string
  ) => {
- const payment = recurringPayments.find(p => p.id === recurringPaymentId);
- if (!payment) return;
+  const payment = recurringPaymentsRef.current.find(p => p.id === recurringPaymentId);
+  if (!payment) return;
 
- const paidAmount = actualAmount !== undefined ? actualAmount : payment.amount;
- const paidDate = getTodayString();
- const now = new Date().toISOString();
+  const resolvedPaidAmount = actualAmount !== undefined ? actualAmount : payment.amount;
+  const resolvedPaidDate = paidDate || getTodayString();
+  const now = new Date().toISOString();
 
- let txId = linkedTransactionId;
- const shouldCreateTx = createTransaction !== undefined ? createTransaction : Boolean(payment.autoLogTransaction);
+  let txId = linkedTransactionId;
+  const existingLog = recurringPaymentLogsRef.current.find(
+   l => l.recurringPaymentId === recurringPaymentId && l.dueDate === dueDate
+  );
 
- if (shouldCreateTx && !txId) {
- const newTx = addTransaction({
- date: paidDate,
- amount: paidAmount,
- type: 'debit',
- category: payment.category,
- description: `${payment.name} (Recurring: ${dueDate})`,
- paymentMethod: payment.paymentMethod || 'Other',
- source: 'manual',
- }, { silent: true });
- txId = newTx.id;
- }
+  if (existingLog && !txId && existingLog.linkedTransactionId) {
+   txId = existingLog.linkedTransactionId;
+  }
 
- const newLog: RecurringPaymentLog = {
- id: `reclog-${Date.now()}-${Math.random().toString(36).substring(2, 7)}`,
- recurringPaymentId,
- dueDate,
- paidDate,
- amount: paidAmount,
- linkedTransactionId: txId,
- createdAt: now,
- updatedAt: now,
- };
+  const shouldCreateTx = createTransaction !== undefined ? createTransaction : Boolean(payment.autoLogTransaction);
 
- recurringPaymentLogsRef.current = [newLog, ...recurringPaymentLogsRef.current];
- setRecurringPaymentLogs(prev => [newLog, ...prev]);
- emitFinanceEvent({
- type: 'recurring_paid',
- paymentName: payment.name,
- amount: paidAmount,
- });
+  if (shouldCreateTx && !txId) {
+   const existingTx = transactionsRef.current.find(
+    t => t.type === 'debit' &&
+         t.category === payment.category &&
+         t.description === `${payment.name} (Recurring: ${dueDate})`
+   );
+   if (existingTx) {
+    txId = existingTx.id;
+   } else {
+    const newTx = addTransaction({
+     date: resolvedPaidDate,
+     amount: resolvedPaidAmount,
+     type: 'debit',
+     category: payment.category,
+     description: `${payment.name} (Recurring: ${dueDate})`,
+     paymentMethod: paymentMethod || payment.paymentMethod || 'Other',
+     source: 'manual',
+    }, { silent: true });
+    txId = newTx.id;
+   }
+  }
+
+  if (existingLog) {
+   const updatedLog: RecurringPaymentLog = {
+    ...existingLog,
+    paidDate: resolvedPaidDate,
+    amount: resolvedPaidAmount,
+    linkedTransactionId: txId || existingLog.linkedTransactionId,
+    updatedAt: now,
+   };
+   recurringPaymentLogsRef.current = recurringPaymentLogsRef.current.map(l =>
+    l.id === existingLog.id ? updatedLog : l
+   );
+   setRecurringPaymentLogs(prev => prev.map(l => (l.id === existingLog.id ? updatedLog : l)));
+  } else {
+   const newLog: RecurringPaymentLog = {
+    id: `reclog-${Date.now()}-${Math.random().toString(36).substring(2, 7)}`,
+    recurringPaymentId,
+    dueDate,
+    paidDate: resolvedPaidDate,
+    amount: resolvedPaidAmount,
+    linkedTransactionId: txId,
+    createdAt: now,
+    updatedAt: now,
+   };
+   recurringPaymentLogsRef.current = [newLog, ...recurringPaymentLogsRef.current];
+   setRecurringPaymentLogs(prev => [newLog, ...prev]);
+  }
+
+  emitFinanceEvent({
+   type: 'recurring_paid',
+   paymentName: payment.name,
+   amount: resolvedPaidAmount,
+  });
  };
 
  // AI Settings
@@ -2840,7 +2681,7 @@ export const FinanceProvider: React.FC<{ children: React.ReactNode }> = ({ child
         }
         const fullAmount = entry.amount;
         const settledAmt = entry.settled
-          ? (entry.settledAmount !== undefined ? entry.settledAmount : fullAmount)
+          ? fullAmount
           : (entry.settledAmount || 0);
         const remaining = Math.max(0, fullAmount - settledAmt);
 
@@ -3456,12 +3297,4 @@ export const FinanceProvider: React.FC<{ children: React.ReactNode }> = ({ child
       </FinanceActionsContext.Provider>
     </FinanceUiContext.Provider>
   );
-};
-
-export const useFinance = () => {
- const context = useContext(FinanceContext);
- if (!context) {
- throw new Error('useFinance must be used within a FinanceProvider');
- }
- return context;
 };

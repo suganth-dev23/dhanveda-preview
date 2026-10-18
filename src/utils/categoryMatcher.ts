@@ -168,7 +168,7 @@ export const DEFAULT_CATEGORY_RULES: KeywordRule[] = [
  */
 export function suggestCategory(
   description: string,
-  defaultFallback = 'Others',
+  fallbackOrRules: string | AutoRule[] | undefined = 'Others',
   customRules?: AutoRule[]
 ): {
   category: string;
@@ -176,6 +176,9 @@ export function suggestCategory(
   paymentMethod?: PaymentMethod;
   confidence: 'high' | 'medium' | 'low';
 } {
+  const defaultFallback = typeof fallbackOrRules === 'string' ? fallbackOrRules : 'Others';
+  const effectiveCustomRules = Array.isArray(fallbackOrRules) ? fallbackOrRules : customRules;
+
   if (!description) {
     return { category: defaultFallback, confidence: 'low' };
   }
@@ -183,7 +186,7 @@ export function suggestCategory(
   const cleanText = description.toLowerCase().replace(/[^a-z0-9\s]/g, ' ');
 
   // 1. Check user-defined custom rules first
-  const activeCustomRules = customRules ?? getCustomAutoRules();
+  const activeCustomRules = effectiveCustomRules ?? getCustomAutoRules();
   for (const rule of activeCustomRules) {
     if (!rule.enabled || !rule.pattern?.trim()) continue;
 
