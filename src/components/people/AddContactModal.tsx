@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { Modal } from '../common/Modal';
 import { useFinance } from '../../context/FinanceContext';
+import { useToast } from '../../context/ToastContext';
 import { UserPlus, AlertCircle } from 'lucide-react';
 import { useSubmitOnce } from '../../hooks/useSubmitOnce';
 
@@ -11,6 +12,7 @@ interface AddContactModalProps {
 
 export const AddContactModal: React.FC<AddContactModalProps> = ({ isOpen, onClose }) => {
   const { contacts, addContact } = useFinance();
+  const { showToast } = useToast();
   const [name, setName] = useState('');
   const [phone, setPhone] = useState('');
   const [email, setEmail] = useState('');
@@ -91,6 +93,7 @@ export const AddContactModal: React.FC<AddContactModalProps> = ({ isOpen, onClos
       email: sanitizedEmail,
       notes: notes.trim() || undefined,
     });
+    showToast('success', 'Contact Added', `${trimmedName} added to contacts.`);
 
     setName('');
     setPhone('');

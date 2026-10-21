@@ -65,19 +65,27 @@ export const SettlementHistoryView: React.FC<SettlementHistoryViewProps> = () =>
  });
  }, [settlements]);
 
+ const hasUnassignedOrDeleted = useMemo(() => {
+ return settlements.some(s => !contactMap.has(s.contactId));
+ }, [settlements, contactMap]);
+
  // Filter settlements
  const filteredSettlements = useMemo(() => {
  return sortedSettlements.filter(s => {
  // Contact filter
- if (selectedContactId !== 'all' && s.contactId !== selectedContactId) {
+ if (selectedContactId !== 'all') {
+ if (selectedContactId === 'unassigned') {
+ if (contactMap.has(s.contactId)) return false;
+ } else if (s.contactId !== selectedContactId) {
  return false;
+ }
  }
 
  // Search query
  if (searchQuery.trim()) {
  const q = searchQuery.toLowerCase();
  const contact = contactMap.get(s.contactId);
- const contactName = contact ? contact.name.toLowerCase() : '';
+ const contactName = (contact ? contact.name : 'Unassigned / Deleted Contact').toLowerCase();
  const note = (s.note || '').toLowerCase();
  const linkedTx = s.linkedTransactionId ? transactionMap.get(s.linkedTransactionId) : null;
  const linkedDesc = linkedTx ? linkedTx.description.toLowerCase() : '';
@@ -113,7 +121,7 @@ export const SettlementHistoryView: React.FC<SettlementHistoryViewProps> = () =>
 
  const handleDelete = (settlement: SettlementRecord) => {
  const contact = contactMap.get(settlement.contactId);
- const name = contact ? contact.name : 'this contact';
+ const name = contact ? contact.name : 'Unassigned / Deleted Contact';
  setConfirmDialog({
    isOpen: true,
    title: 'Delete Settlement',
@@ -223,6 +231,9 @@ export const SettlementHistoryView: React.FC<SettlementHistoryViewProps> = () =>
  {c.name}
  </option>
  ))}
+ {hasUnassignedOrDeleted && (
+ <option value="unassigned">Unassigned / Deleted Contacts</option>
+ )}
  </select>
  </div>
  </div>
@@ -245,7 +256,7 @@ export const SettlementHistoryView: React.FC<SettlementHistoryViewProps> = () =>
  ) : (
  filteredSettlements.map(settlement => {
  const contact = contactMap.get(settlement.contactId);
- const contactName = contact ? contact.name : 'Unknown Contact';
+ const contactName = contact ? contact.name : 'Unassigned / Deleted Contact';
 
  const sourceTx = settlement.sourceTransactionId
  ? transactionMap.get(settlement.sourceTransactionId)

@@ -172,6 +172,7 @@ const SettleSplitForm: React.FC<SettleSplitFormProps> = ({
       note: note.trim(),
       date: sanitizedDate,
     });
+    showToast('success', 'Split Settled', `Settled ₹${roundMoney(parsedSettledAmount)} for "${transaction.description}".`);
 
     onClose();
   };
@@ -496,6 +497,7 @@ const SettleSplitForm: React.FC<SettleSplitFormProps> = ({
         variant="warning"
         onConfirm={() => {
           settleSplitEntry(transaction.id, splitEntry.id, { settled: false });
+          showToast('info', 'Split Unsettled', `Split for "${transaction.description}" marked as unsettled.`);
           setIsConfirmUnsettleOpen(false);
           onClose();
         }}

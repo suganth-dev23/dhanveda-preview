@@ -948,51 +948,137 @@ export const FinanceProvider: React.FC<{ children: React.ReactNode }> = ({ child
  });
  };
 
- // Transaction operations
- const addTransaction = (
- txData: Omit<Transaction, 'id' | 'createdAt'>,
- options?: { silent?: boolean }
- ): Transaction => {
- const now = new Date().toISOString();
- const newTx: Transaction = {
- ...txData,
- id: generateId('tx'),
- createdAt: now,
- updatedAt: now,
- };
- transactionsRef.current = [newTx, ...transactionsRef.current];
- setTransactions(prev => [newTx, ...prev]);
- flushPendingSync();
- if (!options?.silent) {
- emitFinanceEvent({ type: 'transaction_added', tx: newTx });
- }
- return newTx;
- };
+  // Transaction operations
+  const addTransaction = (
+    txData: Omit<Transaction, 'id' | 'createdAt'>,
+    options?: { silent?: boolean }
+  ): Transaction => {
+    const now = new Date().toISOString();
+    const newTx: Transaction = {
+      ...txData,
+      id: generateId('tx'),
+      createdAt: now,
+      updatedAt: now,
+    };
+    transactionsRef.current = [newTx, ...transactionsRef.current];
+    setTransactions(prev => [newTx, ...prev]);
 
- const addMultipleTransactions = (txsData: Omit<Transaction, 'id' | 'createdAt'>[]) => {
- const timestamp = Date.now();
- const now = new Date().toISOString();
- const newTxs: Transaction[] = txsData.map((t, idx) => ({
- ...t,
- id: `tx-${timestamp}-${idx}-${Math.random().toString(36).substring(2, 5)}`,
- createdAt: now,
- updatedAt: now,
- }));
- transactionsRef.current = [...newTxs, ...transactionsRef.current];
- setTransactions(prev => [...newTxs, ...prev]);
- flushPendingSync();
- };
+    // Auto-create matching SettlementRecord for any split entry saved as already settled
+    if (newTx.splitWith && Array.isArray(newTx.splitWith)) {
+      const newSettlements: SettlementRecord[] = [];
+      newTx.splitWith.forEach(entry => {
+        if (entry.settled && entry.contactId) {
+          const splitAmt = entry.settledAmount !== undefined && entry.settledAmount > 0 ? entry.settledAmount : entry.amount;
+          const setRecord: SettlementRecord = {
+            id: generateId('set'),
+            contactId: entry.contactId,
+            date: newTx.date,
+            amount: splitAmt,
+            note: `Settled with "${newTx.description}"`,
+            createdAt: now,
+            updatedAt: now,
+            sourceTransactionId: newTx.id,
+            sourceSplitEntryId: entry.id,
+            direction: entry.direction,
+            linkedTransactionId: entry.linkedTransactionId,
+          };
+          newSettlements.push(setRecord);
+        }
+      });
+      if (newSettlements.length > 0) {
+        settlementsRef.current = [...newSettlements, ...settlementsRef.current];
+        setSettlements(prev => [...newSettlements, ...prev]);
+      }
+    }
 
- const updateTransaction = (id: string, updated: Partial<Transaction>) => {
- const now = new Date().toISOString();
- transactionsRef.current = transactionsRef.current.map(t =>
- t.id === id ? { ...t, ...updated, updatedAt: now } : t
- );
- setTransactions(prev =>
- prev.map(t => (t.id === id ? { ...t, ...updated, updatedAt: now } : t))
- );
- flushPendingSync();
- };
+    flushPendingSync();
+    if (!options?.silent) {
+      emitFinanceEvent({ type: 'transaction_added', tx: newTx });
+    }
+    return newTx;
+  };
+
+  const addMultipleTransactions = (txsData: Omit<Transaction, 'id' | 'createdAt'>[]) => {
+    const timestamp = Date.now();
+    const now = new Date().toISOString();
+    const newTxs: Transaction[] = txsData.map((t, idx) => ({
+      ...t,
+      id: `tx-${timestamp}-${idx}-${Math.random().toString(36).substring(2, 5)}`,
+      createdAt: now,
+      updatedAt: now,
+    }));
+    transactionsRef.current = [...newTxs, ...transactionsRef.current];
+    setTransactions(prev => [...newTxs, ...prev]);
+    flushPendingSync();
+  };
+
+  const updateTransaction = (id: string, updated: Partial<Transaction>) => {
+    const now = new Date().toISOString();
+    transactionsRef.current = transactionsRef.current.map(t =>
+      t.id === id ? { ...t, ...updated, updatedAt: now } : t
+    );
+    setTransactions(prev =>
+      prev.map(t => (t.id === id ? { ...t, ...updated, updatedAt: now } : t))
+    );
+
+    // Sync settlements with changes to splitWith settled statuses
+    if (updated.splitWith && Array.isArray(updated.splitWith)) {
+      const targetTx = transactionsRef.current.find(t => t.id === id);
+      const txDesc = updated.description || targetTx?.description || 'transaction';
+      const txDate = updated.date || targetTx?.date || todayLocal();
+      let settlementsChanged = false;
+      let nextSettlements = [...settlementsRef.current];
+
+      updated.splitWith.forEach(entry => {
+        const existingIdx = nextSettlements.findIndex(
+          s => s.sourceTransactionId === id && s.sourceSplitEntryId === entry.id
+        );
+        if (entry.settled && entry.contactId) {
+          const splitAmt = entry.settledAmount !== undefined && entry.settledAmount > 0 ? entry.settledAmount : entry.amount;
+          if (existingIdx >= 0) {
+            const oldS = nextSettlements[existingIdx];
+            if (oldS.amount !== splitAmt || oldS.contactId !== entry.contactId || oldS.direction !== entry.direction) {
+              nextSettlements[existingIdx] = {
+                ...oldS,
+                contactId: entry.contactId,
+                amount: splitAmt,
+                direction: entry.direction,
+                updatedAt: now,
+              };
+              settlementsChanged = true;
+            }
+          } else {
+            const newS: SettlementRecord = {
+              id: generateId('set'),
+              contactId: entry.contactId,
+              date: txDate,
+              amount: splitAmt,
+              note: `Settled with "${txDesc}"`,
+              createdAt: now,
+              updatedAt: now,
+              sourceTransactionId: id,
+              sourceSplitEntryId: entry.id,
+              direction: entry.direction,
+              linkedTransactionId: entry.linkedTransactionId,
+            };
+            nextSettlements = [newS, ...nextSettlements];
+            settlementsChanged = true;
+          }
+        } else if (!entry.settled && existingIdx >= 0) {
+          addTombstone('settlements', nextSettlements[existingIdx].id);
+          nextSettlements = nextSettlements.filter((_, idx) => idx !== existingIdx);
+          settlementsChanged = true;
+        }
+      });
+
+      if (settlementsChanged) {
+        settlementsRef.current = nextSettlements;
+        setSettlements(nextSettlements);
+      }
+    }
+
+    flushPendingSync();
+  };
 
  const deleteTransaction = (id: string) => {
  addTombstone('transactions', id);
@@ -1236,444 +1322,461 @@ export const FinanceProvider: React.FC<{ children: React.ReactNode }> = ({ child
     // Explicitly NO transaction_added / gamification events emitted!
   }, [flushPendingSync]);
 
- // Contact CRUD operations
- const addContact = (contactData: Omit<Contact, 'id' | 'createdAt'>): Contact => {
- const now = new Date().toISOString();
- const newContact: Contact = {
- ...contactData,
- id: generateId('contact'),
- createdAt: now,
- updatedAt: now,
- };
- contactsRef.current = [...contactsRef.current, newContact];
- setContacts(prev => [...prev, newContact]);
- return newContact;
- };
+  // Contact CRUD operations
+  const addContact = (contactData: Omit<Contact, 'id' | 'createdAt'>): Contact => {
+    const now = new Date().toISOString();
+    const newContact: Contact = {
+      ...contactData,
+      id: generateId('contact'),
+      createdAt: now,
+      updatedAt: now,
+    };
+    contactsRef.current = [...contactsRef.current, newContact];
+    setContacts(prev => [...prev, newContact]);
+    flushPendingSync();
+    return newContact;
+  };
 
- const updateContact = (id: string, updated: Partial<Contact>) => {
- const now = new Date().toISOString();
- contactsRef.current = contactsRef.current.map(c =>
- c.id === id ? { ...c, ...updated, updatedAt: now } : c
- );
- setContacts(prev =>
- prev.map(c => (c.id === id ? { ...c, ...updated, updatedAt: now } : c))
- );
- };
+  const updateContact = (id: string, updated: Partial<Contact>) => {
+    const now = new Date().toISOString();
+    contactsRef.current = contactsRef.current.map(c =>
+      c.id === id ? { ...c, ...updated, updatedAt: now } : c
+    );
+    setContacts(prev =>
+      prev.map(c => (c.id === id ? { ...c, ...updated, updatedAt: now } : c))
+    );
+    flushPendingSync();
+  };
 
- const deleteContact = (id: string) => {
- addTombstone('contacts', id);
- contactsRef.current = contactsRef.current.filter(c => c.id !== id);
- setContacts(prev => prev.filter(c => c.id !== id));
- // Tombstone and remove all settlements tied to this contact for sync integrity
- const tiedSettlements = settlementsRef.current.filter(s => s.contactId === id);
- tiedSettlements.forEach(s => addTombstone('settlements', s.id));
- settlementsRef.current = settlementsRef.current.filter(s => s.contactId !== id);
- setSettlements(prev => prev.filter(s => s.contactId !== id));
- const now = new Date().toISOString();
- transactionsRef.current = transactionsRef.current.map(t => {
- if (!t.splitWith || !Array.isArray(t.splitWith)) return t;
- const updatedSplits = t.splitWith.map(s =>
- s.contactId === id ? { ...s, contactId: undefined, label: s.label || 'Former Contact' } : s
- );
- return { ...t, splitWith: updatedSplits, updatedAt: now };
- });
- setTransactions(prev =>
- prev.map(t => {
- if (!t.splitWith || !Array.isArray(t.splitWith)) return t;
- const updatedSplits = t.splitWith.map(s =>
- s.contactId === id ? { ...s, contactId: undefined, label: s.label || 'Former Contact' } : s
- );
- return { ...t, splitWith: updatedSplits, updatedAt: now };
- })
- );
- };
+  const deleteContact = (id: string) => {
+    addTombstone('contacts', id);
+    contactsRef.current = contactsRef.current.filter(c => c.id !== id);
+    setContacts(prev => prev.filter(c => c.id !== id));
+    // Tombstone and remove all settlements tied to this contact for sync integrity
+    const tiedSettlements = settlementsRef.current.filter(s => s.contactId === id);
+    tiedSettlements.forEach(s => addTombstone('settlements', s.id));
+    settlementsRef.current = settlementsRef.current.filter(s => s.contactId !== id);
+    setSettlements(prev => prev.filter(s => s.contactId !== id));
+    const now = new Date().toISOString();
+    transactionsRef.current = transactionsRef.current.map(t => {
+      if (!t.splitWith || !Array.isArray(t.splitWith)) return t;
+      const updatedSplits = t.splitWith.map(s =>
+        s.contactId === id ? { ...s, contactId: undefined, label: s.label || 'Former Contact' } : s
+      );
+      return { ...t, splitWith: updatedSplits, updatedAt: now };
+    });
+    setTransactions(prev =>
+      prev.map(t => {
+        if (!t.splitWith || !Array.isArray(t.splitWith)) return t;
+        const updatedSplits = t.splitWith.map(s =>
+          s.contactId === id ? { ...s, contactId: undefined, label: s.label || 'Former Contact' } : s
+        );
+        return { ...t, splitWith: updatedSplits, updatedAt: now };
+      })
+    );
+    flushPendingSync();
+  };
 
- const recordSettlement = (
- contactId: string,
- amount: number,
- note?: string,
- date?: string,
- sourceTransactionId?: string,
- sourceSplitEntryId?: string,
- linkedTransactionId?: string,
- direction?: OwedDirection
- ): SettlementRecord => {
- const now = new Date().toISOString();
- const resolvedDirection: OwedDirection = direction || 'they_owe_me';
+  const recordSettlement = (
+    contactId: string,
+    amount: number,
+    note?: string,
+    date?: string,
+    sourceTransactionId?: string,
+    sourceSplitEntryId?: string,
+    linkedTransactionId?: string,
+    direction?: OwedDirection
+  ): SettlementRecord => {
+    const now = new Date().toISOString();
+    const resolvedDirection: OwedDirection = direction || 'they_owe_me';
 
- // If this is a contact-level settlement (no sourceTransactionId),
- // automatically reconcile open splits for this contact in FIFO order!
- const reconciledSplits: Array<{ transactionId: string; splitEntryId: string; amount: number }> = [];
+    // If this is a contact-level settlement (no sourceTransactionId),
+    // automatically reconcile open splits for this contact in FIFO order!
+    const reconciledSplits: Array<{ transactionId: string; splitEntryId: string; amount: number }> = [];
 
- if (!sourceTransactionId && amount > 0) {
- let remainingToReconcile = amount;
- let firstReconciledTxId: string | undefined = undefined;
- let firstReconciledSplitId: string | undefined = undefined;
+    if (!sourceTransactionId && amount > 0) {
+      let remainingToReconcile = amount;
+      let firstReconciledTxId: string | undefined = undefined;
+      let firstReconciledSplitId: string | undefined = undefined;
 
- const updatedTxs = transactionsRef.current.map(t => {
- if (!t.splitWith || !Array.isArray(t.splitWith) || remainingToReconcile <= 0) return t;
- let txModified = false;
- const updatedSplits = t.splitWith.map(entry => {
- if (
- entry.contactId === contactId &&
- entry.direction === resolvedDirection &&
- !entry.settled &&
- remainingToReconcile > 0
- ) {
- const currentSettled = entry.settledAmount || 0;
- const openAmt = Math.max(0, entry.amount - currentSettled);
- if (openAmt > 0) {
- const allocation = roundCurrency(Math.min(openAmt, remainingToReconcile));
- const newSettledAmt = roundCurrency(currentSettled + allocation);
- const isFull = newSettledAmt >= entry.amount - 0.01;
- remainingToReconcile = Math.max(0, roundCurrency(remainingToReconcile - allocation));
- txModified = true;
- reconciledSplits.push({
- transactionId: t.id,
- splitEntryId: entry.id,
- amount: allocation,
- });
- if (!firstReconciledTxId) {
- firstReconciledTxId = t.id;
- firstReconciledSplitId = entry.id;
- }
- return {
- ...entry,
- settled: isFull,
- settledAmount: Number(newSettledAmt.toFixed(2)),
- linkedTransactionId: linkedTransactionId || entry.linkedTransactionId,
- };
- }
- }
- return entry;
- });
+      const updatedTxs = transactionsRef.current.map(t => {
+        if (!t.splitWith || !Array.isArray(t.splitWith) || remainingToReconcile <= 0) return t;
+        let txModified = false;
+        const updatedSplits = t.splitWith.map(entry => {
+          if (
+            entry.contactId === contactId &&
+            entry.direction === resolvedDirection &&
+            !entry.settled &&
+            remainingToReconcile > 0
+          ) {
+            const currentSettled = entry.settledAmount || 0;
+            const openAmt = Math.max(0, entry.amount - currentSettled);
+            if (openAmt > 0) {
+              const allocation = roundCurrency(Math.min(openAmt, remainingToReconcile));
+              const newSettledAmt = roundCurrency(currentSettled + allocation);
+              const isFull = newSettledAmt >= entry.amount - 0.01;
+              remainingToReconcile = Math.max(0, roundCurrency(remainingToReconcile - allocation));
+              txModified = true;
+              reconciledSplits.push({
+                transactionId: t.id,
+                splitEntryId: entry.id,
+                amount: allocation,
+              });
+              if (!firstReconciledTxId) {
+                firstReconciledTxId = t.id;
+                firstReconciledSplitId = entry.id;
+              }
+              return {
+                ...entry,
+                settled: isFull,
+                settledAmount: Number(newSettledAmt.toFixed(2)),
+                linkedTransactionId: linkedTransactionId || entry.linkedTransactionId,
+              };
+            }
+          }
+          return entry;
+        });
 
- return txModified ? { ...t, splitWith: updatedSplits, updatedAt: now } : t;
- });
+        return txModified ? { ...t, splitWith: updatedSplits, updatedAt: now } : t;
+      });
 
- if (firstReconciledTxId) {
- transactionsRef.current = updatedTxs;
- setTransactions(updatedTxs);
- sourceTransactionId = firstReconciledTxId;
- sourceSplitEntryId = firstReconciledSplitId;
- }
- }
+      if (firstReconciledTxId) {
+        transactionsRef.current = updatedTxs;
+        setTransactions(updatedTxs);
+        sourceTransactionId = firstReconciledTxId;
+        sourceSplitEntryId = firstReconciledSplitId;
+      }
+    }
 
- const newSettlement: SettlementRecord = {
- id: generateId('set'),
- contactId,
- amount,
- date: date || todayLocal(),
- note: note || 'Settlement payment',
- createdAt: now,
- updatedAt: now,
- sourceTransactionId,
- sourceSplitEntryId,
- linkedTransactionId,
- direction: resolvedDirection,
- reconciledSplits: reconciledSplits.length > 0 ? reconciledSplits : undefined,
- };
- settlementsRef.current = [newSettlement, ...settlementsRef.current];
- setSettlements(prev => [newSettlement, ...prev]);
- const contact = contactsRef.current.find(c => c.id === contactId);
- emitFinanceEvent({
- type: 'settlement_recorded',
- contactName: contact ? contact.name : 'Contact',
- amount,
- allSettled: false,
- });
- return newSettlement;
- };
+    const newSettlement: SettlementRecord = {
+      id: generateId('set'),
+      contactId,
+      amount,
+      date: date || todayLocal(),
+      note: note || 'Settlement payment',
+      createdAt: now,
+      updatedAt: now,
+      sourceTransactionId,
+      sourceSplitEntryId,
+      linkedTransactionId,
+      direction: resolvedDirection,
+      reconciledSplits: reconciledSplits.length > 0 ? reconciledSplits : undefined,
+    };
+    settlementsRef.current = [newSettlement, ...settlementsRef.current];
+    setSettlements(prev => [newSettlement, ...prev]);
+    flushPendingSync();
 
- const deleteSettlement = (id: string) => {
- addTombstone('settlements', id);
- const target = settlementsRef.current.find(s => s.id === id);
- settlementsRef.current = settlementsRef.current.filter(s => s.id !== id);
- setSettlements(prev => prev.filter(s => s.id !== id));
+    const contact = contactsRef.current.find(c => c.id === contactId);
+    emitFinanceEvent({
+      type: 'settlement_recorded',
+      contactName: contact ? contact.name : 'Contact',
+      amount,
+      allSettled: false,
+    });
+    return newSettlement;
+  };
 
- const now = new Date().toISOString();
+  const deleteSettlement = (id: string) => {
+    addTombstone('settlements', id);
+    const target = settlementsRef.current.find(s => s.id === id);
+    settlementsRef.current = settlementsRef.current.filter(s => s.id !== id);
+    setSettlements(prev => prev.filter(s => s.id !== id));
 
- // 1. If this settlement tracked multi-split reconciliations, restore all of them
- if (target?.reconciledSplits && target.reconciledSplits.length > 0) {
- const splitLookup = new Map<string, number>();
- target.reconciledSplits.forEach(r => {
- splitLookup.set(`${r.transactionId}:${r.splitEntryId}`, r.amount);
- });
+    const now = new Date().toISOString();
 
- const updatedTxs = transactionsRef.current.map(t => {
- if (!t.splitWith || !Array.isArray(t.splitWith)) return t;
- let txModified = false;
- const updatedSplits = t.splitWith.map(s => {
- const key = `${t.id}:${s.id}`;
- if (splitLookup.has(key)) {
- txModified = true;
- const reconciledAmt = splitLookup.get(key) || 0;
- const currentSettled = s.settledAmount !== undefined ? s.settledAmount : s.amount;
- const newSettledAmt = Math.max(0, currentSettled - reconciledAmt);
- if (newSettledAmt <= 0.01) {
- return { ...s, settled: false, settledAmount: undefined, linkedTransactionId: undefined };
- } else {
- return { ...s, settled: false, settledAmount: Number(newSettledAmt.toFixed(2)) };
- }
- }
- return s;
- });
- return txModified ? { ...t, splitWith: updatedSplits, updatedAt: now } : t;
- });
+    // 1. If this settlement tracked multi-split reconciliations, restore all of them
+    if (target?.reconciledSplits && target.reconciledSplits.length > 0) {
+      const splitLookup = new Map<string, number>();
+      target.reconciledSplits.forEach(r => {
+        splitLookup.set(`${r.transactionId}:${r.splitEntryId}`, r.amount);
+      });
 
- transactionsRef.current = updatedTxs;
- setTransactions(updatedTxs);
- } else if (target?.sourceTransactionId) {
- // 2. Legacy fallback for single-split settlements
- const updatedTxs = transactionsRef.current.map(t => {
- if (t.id !== target.sourceTransactionId || !t.splitWith) return t;
- const updatedSplits = t.splitWith.map(s => {
- if (target.sourceSplitEntryId ? s.id === target.sourceSplitEntryId : true) {
- return { ...s, settled: false, settledAmount: undefined, linkedTransactionId: undefined };
- }
- return s;
- });
- return { ...t, splitWith: updatedSplits, updatedAt: now };
- });
- transactionsRef.current = updatedTxs;
- setTransactions(updatedTxs);
- }
- flushPendingSync();
- };
+      const updatedTxs = transactionsRef.current.map(t => {
+        if (!t.splitWith || !Array.isArray(t.splitWith)) return t;
+        let txModified = false;
+        const updatedSplits = t.splitWith.map(s => {
+          const key = `${t.id}:${s.id}`;
+          if (splitLookup.has(key)) {
+            txModified = true;
+            const reconciledAmt = splitLookup.get(key) || 0;
+            const currentSettled = s.settledAmount !== undefined ? s.settledAmount : s.amount;
+            const newSettledAmt = Math.max(0, currentSettled - reconciledAmt);
+            if (newSettledAmt <= 0.01) {
+              return { ...s, settled: false, settledAmount: undefined, linkedTransactionId: undefined };
+            } else {
+              return { ...s, settled: false, settledAmount: Number(newSettledAmt.toFixed(2)) };
+            }
+          }
+          return s;
+        });
+        return txModified ? { ...t, splitWith: updatedSplits, updatedAt: now } : t;
+      });
 
- const updateSettlement = (id: string, updated: Partial<SettlementRecord>) => {
- const now = new Date().toISOString();
- settlementsRef.current = settlementsRef.current.map(s =>
- s.id === id ? { ...s, ...updated, updatedAt: now } : s
- );
- setSettlements(prev =>
- prev.map(s => (s.id === id ? { ...s, ...updated, updatedAt: now } : s))
- );
- };
+      transactionsRef.current = updatedTxs;
+      setTransactions(updatedTxs);
+    } else if (target?.sourceTransactionId) {
+      // 2. Legacy fallback for single-split settlements
+      const updatedTxs = transactionsRef.current.map(t => {
+        if (t.id !== target.sourceTransactionId || !t.splitWith) return t;
+        const updatedSplits = t.splitWith.map(s => {
+          if (target.sourceSplitEntryId ? s.id === target.sourceSplitEntryId : true) {
+            return { ...s, settled: false, settledAmount: undefined, linkedTransactionId: undefined };
+          }
+          return s;
+        });
+        return { ...t, splitWith: updatedSplits, updatedAt: now };
+      });
+      transactionsRef.current = updatedTxs;
+      setTransactions(updatedTxs);
+    }
+    flushPendingSync();
+  };
 
- const linkSettlementToTransaction = (settlementId: string, transactionId?: string) => {
- const now = new Date().toISOString();
- settlementsRef.current = settlementsRef.current.map(s =>
- s.id === settlementId
- ? { ...s, linkedTransactionId: transactionId || undefined, updatedAt: now }
- : s
- );
- setSettlements(prev =>
- prev.map(s =>
- s.id === settlementId
- ? { ...s, linkedTransactionId: transactionId || undefined, updatedAt: now }
- : s
- )
- );
- };
+  const updateSettlement = (id: string, updated: Partial<SettlementRecord>) => {
+    const now = new Date().toISOString();
+    settlementsRef.current = settlementsRef.current.map(s =>
+      s.id === id ? { ...s, ...updated, updatedAt: now } : s
+    );
+    setSettlements(prev =>
+      prev.map(s => (s.id === id ? { ...s, ...updated, updatedAt: now } : s))
+    );
+    flushPendingSync();
+  };
 
- const quickToggleSettleTransaction = (
- transactionId: string,
- splitEntryId?: string
- ): SettlementRecord | undefined => {
- const tx = transactionsRef.current.find(t => t.id === transactionId);
- if (!tx || !tx.splitWith || !Array.isArray(tx.splitWith)) return undefined;
+  const linkSettlementToTransaction = (settlementId: string, transactionId?: string) => {
+    const now = new Date().toISOString();
+    settlementsRef.current = settlementsRef.current.map(s =>
+      s.id === settlementId
+        ? { ...s, linkedTransactionId: transactionId || undefined, updatedAt: now }
+        : s
+    );
+    setSettlements(prev =>
+      prev.map(s =>
+        s.id === settlementId
+          ? { ...s, linkedTransactionId: transactionId || undefined, updatedAt: now }
+          : s
+      )
+    );
+    flushPendingSync();
+  };
 
- const targetEntryId = splitEntryId || tx.splitWith[0]?.id;
- if (!targetEntryId) return undefined;
+  const quickToggleSettleTransaction = (
+    transactionId: string,
+    splitEntryId?: string
+  ): SettlementRecord | undefined => {
+    const tx = transactionsRef.current.find(t => t.id === transactionId);
+    if (!tx || !tx.splitWith || !Array.isArray(tx.splitWith)) return undefined;
 
- const targetEntry = tx.splitWith.find(e => e.id === targetEntryId);
- if (!targetEntry) return undefined;
+    const targetEntryId = splitEntryId || tx.splitWith[0]?.id;
+    if (!targetEntryId) return undefined;
 
- const isCurrentlySettled = Boolean(targetEntry.settled);
- const now = new Date().toISOString();
+    const targetEntry = tx.splitWith.find(e => e.id === targetEntryId);
+    if (!targetEntry) return undefined;
 
- if (!isCurrentlySettled) {
- // 1. Mark that specific splitEntry as settled
- const updatedSplits = tx.splitWith.map(e =>
- e.id === targetEntryId ? { ...e, settled: true, settledAmount: e.amount } : e
- );
- updateTransaction(transactionId, { splitWith: updatedSplits, updatedAt: now });
+    const isCurrentlySettled = Boolean(targetEntry.settled);
+    const now = new Date().toISOString();
 
- // 2. If it is attached to a contact, record SettlementRecord
- if (targetEntry.contactId) {
- const newSettlement: SettlementRecord = {
- id: generateId('set'),
- contactId: targetEntry.contactId,
- date: todayLocal(),
- amount: targetEntry.amount,
- note: `Quick settlement for "${tx.description}"`,
- createdAt: now,
- updatedAt: now,
- sourceTransactionId: transactionId,
- sourceSplitEntryId: targetEntryId,
- direction: targetEntry.direction,
- };
- settlementsRef.current = [newSettlement, ...settlementsRef.current];
- setSettlements(prev => [newSettlement, ...prev]);
- const contact = contactsRef.current.find(c => c.id === targetEntry.contactId);
- emitFinanceEvent({
- type: 'settlement_recorded',
- contactName: contact ? contact.name : 'Contact',
- amount: targetEntry.amount,
- allSettled: false,
- });
- return newSettlement;
- }
- return undefined;
- } else {
- // 1. Mark that specific splitEntry as unsettled
- const updatedSplits = tx.splitWith.map(e =>
- e.id === targetEntryId ? { ...e, settled: false, settledAmount: undefined } : e
- );
- updateTransaction(transactionId, { splitWith: updatedSplits, updatedAt: now });
+    if (!isCurrentlySettled) {
+      // 1. Mark that specific splitEntry as settled
+      const updatedSplits = tx.splitWith.map(e =>
+        e.id === targetEntryId ? { ...e, settled: true, settledAmount: e.amount } : e
+      );
+      updateTransaction(transactionId, { splitWith: updatedSplits, updatedAt: now });
 
- // 2. Remove the auto-created settlement record strictly matching this split entry
- const toDelete = settlementsRef.current.find(
- s =>
- s.sourceTransactionId === transactionId &&
- s.sourceSplitEntryId === targetEntryId
- );
- if (toDelete) {
- addTombstone('settlements', toDelete.id);
- settlementsRef.current = settlementsRef.current.filter(s => s.id !== toDelete.id);
- setSettlements(prev => prev.filter(s => s.id !== toDelete.id));
- }
- return undefined;
- }
- };
+      // 2. If it is attached to a contact, record SettlementRecord
+      if (targetEntry.contactId) {
+        const newSettlement: SettlementRecord = {
+          id: generateId('set'),
+          contactId: targetEntry.contactId,
+          date: todayLocal(),
+          amount: targetEntry.amount,
+          note: `Quick settlement for "${tx.description}"`,
+          createdAt: now,
+          updatedAt: now,
+          sourceTransactionId: transactionId,
+          sourceSplitEntryId: targetEntryId,
+          direction: targetEntry.direction,
+        };
+        settlementsRef.current = [newSettlement, ...settlementsRef.current];
+        setSettlements(prev => [newSettlement, ...prev]);
+        flushPendingSync();
 
- const assignSplitToContact = (
- transactionId: string,
- splitEntryId: string,
- contactId: string
- ) => {
- const tx = transactionsRef.current.find(t => t.id === transactionId);
- if (!tx || !tx.splitWith || !Array.isArray(tx.splitWith)) return;
+        const contact = contactsRef.current.find(c => c.id === targetEntry.contactId);
+        emitFinanceEvent({
+          type: 'settlement_recorded',
+          contactName: contact ? contact.name : 'Contact',
+          amount: targetEntry.amount,
+          allSettled: false,
+        });
+        return newSettlement;
+      }
+      flushPendingSync();
+      return undefined;
+    } else {
+      // 1. Mark that specific splitEntry as unsettled
+      const updatedSplits = tx.splitWith.map(e =>
+        e.id === targetEntryId ? { ...e, settled: false, settledAmount: undefined } : e
+      );
+      updateTransaction(transactionId, { splitWith: updatedSplits, updatedAt: now });
 
- const now = new Date().toISOString();
- const updatedSplits = tx.splitWith.map(e =>
- e.id === splitEntryId
- ? {
- ...e,
- contactId,
- label: undefined, // Clear generic label once assigned to a real person
- }
- : e
- );
- updateTransaction(transactionId, { splitWith: updatedSplits, updatedAt: now });
- };
+      // 2. Remove the auto-created settlement record strictly matching this split entry
+      const toDelete = settlementsRef.current.find(
+        s =>
+          s.sourceTransactionId === transactionId &&
+          s.sourceSplitEntryId === targetEntryId
+      );
+      if (toDelete) {
+        addTombstone('settlements', toDelete.id);
+        settlementsRef.current = settlementsRef.current.filter(s => s.id !== toDelete.id);
+        setSettlements(prev => prev.filter(s => s.id !== toDelete.id));
+      }
+      flushPendingSync();
+      return undefined;
+    }
+  };
 
- const settleSplitEntry = (
- transactionId: string,
- splitEntryId: string,
- options: {
- settled: boolean;
- settledAmount?: number;
- linkedTransactionId?: string;
- note?: string;
- date?: string;
- }
- ): SettlementRecord | undefined => {
- const tx = transactionsRef.current.find(t => t.id === transactionId);
- if (!tx || !tx.splitWith || !Array.isArray(tx.splitWith)) return undefined;
+  const assignSplitToContact = (
+    transactionId: string,
+    splitEntryId: string,
+    contactId: string
+  ) => {
+    const tx = transactionsRef.current.find(t => t.id === transactionId);
+    if (!tx || !tx.splitWith || !Array.isArray(tx.splitWith)) return;
 
- const targetEntry = tx.splitWith.find(e => e.id === splitEntryId);
- if (!targetEntry) return undefined;
+    const now = new Date().toISOString();
+    const updatedSplits = tx.splitWith.map(e =>
+      e.id === splitEntryId
+        ? {
+            ...e,
+            contactId,
+            label: undefined, // Clear generic label once assigned to a real person
+          }
+        : e
+    );
+    updateTransaction(transactionId, { splitWith: updatedSplits, updatedAt: now });
+    flushPendingSync();
+  };
 
- const now = new Date().toISOString();
+  const settleSplitEntry = (
+    transactionId: string,
+    splitEntryId: string,
+    options: {
+      settled: boolean;
+      settledAmount?: number;
+      linkedTransactionId?: string;
+      note?: string;
+      date?: string;
+    }
+  ): SettlementRecord | undefined => {
+    const tx = transactionsRef.current.find(t => t.id === transactionId);
+    if (!tx || !tx.splitWith || !Array.isArray(tx.splitWith)) return undefined;
 
- if (options.settled) {
- const inputAmount =
- typeof options.settledAmount === 'number' ? options.settledAmount : targetEntry.amount;
- if (inputAmount <= 0) return undefined;
+    const targetEntry = tx.splitWith.find(e => e.id === splitEntryId);
+    if (!targetEntry) return undefined;
 
- const finalSettledAmount = Math.min(inputAmount, targetEntry.amount);
- const isFullSettlement = finalSettledAmount >= targetEntry.amount - 0.01;
+    const now = new Date().toISOString();
 
- // 1. Update splitEntry on transaction
- const updatedSplits = tx.splitWith.map(e =>
- e.id === splitEntryId
- ? {
- ...e,
- settled: isFullSettlement,
- settledAmount: finalSettledAmount,
- linkedTransactionId: options.linkedTransactionId || undefined,
- }
- : e
- );
- updateTransaction(transactionId, { splitWith: updatedSplits, updatedAt: now });
+    if (options.settled) {
+      const inputAmount =
+        typeof options.settledAmount === 'number' ? options.settledAmount : targetEntry.amount;
+      if (inputAmount <= 0) return undefined;
 
- // 2. If attached to a contact, record or update SettlementRecord
- if (targetEntry.contactId) {
- const existingSettlement = settlementsRef.current.find(
- s =>
- s.sourceTransactionId === transactionId &&
- s.sourceSplitEntryId === splitEntryId
- );
+      const finalSettledAmount = Math.min(inputAmount, targetEntry.amount);
+      const isFullSettlement = finalSettledAmount >= targetEntry.amount - 0.01;
 
- if (existingSettlement) {
- const updatedRecord: SettlementRecord = {
- ...existingSettlement,
- amount: finalSettledAmount,
- date: options.date || existingSettlement.date,
- note: options.note || existingSettlement.note,
- linkedTransactionId: options.linkedTransactionId || undefined,
- direction: targetEntry.direction,
- updatedAt: now,
- };
- updateSettlement(existingSettlement.id, updatedRecord);
- return updatedRecord;
- } else {
- const newSettlement: SettlementRecord = {
- id: generateId('set'),
- contactId: targetEntry.contactId,
- date: options.date || todayLocal(),
- amount: finalSettledAmount,
- note: options.note || `Settlement for "${tx.description}"`,
- createdAt: now,
- updatedAt: now,
- sourceTransactionId: transactionId,
- sourceSplitEntryId: splitEntryId,
- linkedTransactionId: options.linkedTransactionId || undefined,
- direction: targetEntry.direction,
- };
- settlementsRef.current = [newSettlement, ...settlementsRef.current];
- setSettlements(prev => [newSettlement, ...prev]);
- const contact = contactsRef.current.find(c => c.id === targetEntry.contactId);
- emitFinanceEvent({
- type: 'settlement_recorded',
- contactName: contact ? contact.name : 'Contact',
- amount: finalSettledAmount,
- allSettled: false,
- });
- return newSettlement;
- }
- }
- return undefined;
- } else {
- // Unsettle
- const updatedSplits = tx.splitWith.map(e =>
- e.id === splitEntryId
- ? {
- ...e,
- settled: false,
- settledAmount: undefined,
- linkedTransactionId: undefined,
- }
- : e
- );
- updateTransaction(transactionId, { splitWith: updatedSplits, updatedAt: now });
+      // 1. Update splitEntry on transaction
+      const updatedSplits = tx.splitWith.map(e =>
+        e.id === splitEntryId
+          ? {
+              ...e,
+              settled: isFullSettlement,
+              settledAmount: finalSettledAmount,
+              linkedTransactionId: options.linkedTransactionId || undefined,
+            }
+          : e
+      );
+      updateTransaction(transactionId, { splitWith: updatedSplits, updatedAt: now });
 
- // Remove auto-created settlement record strictly matching this splitEntryId
- const toDelete = settlementsRef.current.find(
- s =>
- s.sourceTransactionId === transactionId &&
- s.sourceSplitEntryId === splitEntryId
- );
- if (toDelete) {
- addTombstone('settlements', toDelete.id);
- settlementsRef.current = settlementsRef.current.filter(s => s.id !== toDelete.id);
- setSettlements(prev => prev.filter(s => s.id !== toDelete.id));
- }
- return undefined;
- }
- };
+      // 2. If attached to a contact, record or update SettlementRecord
+      if (targetEntry.contactId) {
+        const existingSettlement = settlementsRef.current.find(
+          s =>
+            s.sourceTransactionId === transactionId &&
+            s.sourceSplitEntryId === splitEntryId
+        );
+
+        if (existingSettlement) {
+          const updatedRecord: SettlementRecord = {
+            ...existingSettlement,
+            amount: finalSettledAmount,
+            date: options.date || existingSettlement.date,
+            note: options.note || existingSettlement.note,
+            linkedTransactionId: options.linkedTransactionId || undefined,
+            direction: targetEntry.direction,
+            updatedAt: now,
+          };
+          updateSettlement(existingSettlement.id, updatedRecord);
+          flushPendingSync();
+          return updatedRecord;
+        } else {
+          const newSettlement: SettlementRecord = {
+            id: generateId('set'),
+            contactId: targetEntry.contactId,
+            date: options.date || todayLocal(),
+            amount: finalSettledAmount,
+            note: options.note || `Settlement for "${tx.description}"`,
+            createdAt: now,
+            updatedAt: now,
+            sourceTransactionId: transactionId,
+            sourceSplitEntryId: splitEntryId,
+            linkedTransactionId: options.linkedTransactionId || undefined,
+            direction: targetEntry.direction,
+          };
+          settlementsRef.current = [newSettlement, ...settlementsRef.current];
+          setSettlements(prev => [newSettlement, ...prev]);
+          flushPendingSync();
+
+          const contact = contactsRef.current.find(c => c.id === targetEntry.contactId);
+          emitFinanceEvent({
+            type: 'settlement_recorded',
+            contactName: contact ? contact.name : 'Contact',
+            amount: finalSettledAmount,
+            allSettled: false,
+          });
+          return newSettlement;
+        }
+      }
+      flushPendingSync();
+      return undefined;
+    } else {
+      // Unsettle
+      const updatedSplits = tx.splitWith.map(e =>
+        e.id === splitEntryId
+          ? {
+              ...e,
+              settled: false,
+              settledAmount: undefined,
+              linkedTransactionId: undefined,
+            }
+          : e
+      );
+      updateTransaction(transactionId, { splitWith: updatedSplits, updatedAt: now });
+
+      // Remove auto-created settlement record strictly matching this splitEntryId
+      const toDelete = settlementsRef.current.find(
+        s =>
+          s.sourceTransactionId === transactionId &&
+          s.sourceSplitEntryId === splitEntryId
+      );
+      if (toDelete) {
+        addTombstone('settlements', toDelete.id);
+        settlementsRef.current = settlementsRef.current.filter(s => s.id !== toDelete.id);
+        setSettlements(prev => prev.filter(s => s.id !== toDelete.id));
+      }
+      flushPendingSync();
+      return undefined;
+    }
+  };
 
  // Category operations
  const addCategory = (catData: Omit<Category, 'id'>): Category => {

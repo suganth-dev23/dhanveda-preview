@@ -153,21 +153,30 @@ export function normalizeContact(raw: any): Contact | null {
 
 /**
  * Normalizes and validates a settlement record.
+ * Preserves legacy settlements even if contactId is missing/unassigned or contact was removed.
  */
 export function normalizeSettlement(raw: any): SettlementRecord | null {
   if (!raw || typeof raw !== 'object') return null;
   const id = typeof raw.id === 'string' && raw.id.trim() ? raw.id.trim() : null;
-  const contactId = typeof raw.contactId === 'string' && raw.contactId.trim() ? raw.contactId.trim() : null;
-  if (!id || !contactId) return null;
+  if (!id) return null;
 
-  const amount = typeof raw.amount === 'number' ? raw.amount : parseFloat(raw.amount);
-  if (!isValidAmount(amount)) return null;
+  const contactId = typeof raw.contactId === 'string' && raw.contactId.trim()
+    ? raw.contactId.trim()
+    : (raw.contactId ? String(raw.contactId).trim() : 'unassigned');
+
+  const rawAmount = typeof raw.amount === 'number' ? raw.amount : parseFloat(raw.amount);
+  if (isNaN(rawAmount) || rawAmount < 0 || !Number.isFinite(rawAmount) || rawAmount > MAX_AMOUNT) {
+    return null;
+  }
+  const amount = roundMoney(rawAmount);
 
   let date: string;
-  if (typeof raw.date === 'string' && isValidDate(raw.date)) {
-    date = raw.date;
-  } else if (typeof raw.createdAt === 'string' && isValidDate(raw.createdAt.slice(0, 10))) {
-    date = raw.createdAt.slice(0, 10);
+  const rawDateStr = typeof raw.date === 'string' ? raw.date.trim().slice(0, 10) : '';
+  const rawCreatedStr = typeof raw.createdAt === 'string' ? raw.createdAt.trim().slice(0, 10) : '';
+  if (isValidDate(rawDateStr)) {
+    date = rawDateStr;
+  } else if (isValidDate(rawCreatedStr)) {
+    date = rawCreatedStr;
   } else {
     date = getTodayString();
   }
@@ -176,7 +185,7 @@ export function normalizeSettlement(raw: any): SettlementRecord | null {
     id,
     contactId,
     date,
-    amount: roundMoney(amount),
+    amount,
     note: typeof raw.note === 'string' ? raw.note : undefined,
     createdAt: typeof raw.createdAt === 'string' ? raw.createdAt : new Date().toISOString(),
     updatedAt: typeof raw.updatedAt === 'string' ? raw.updatedAt : undefined,

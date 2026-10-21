@@ -267,6 +267,7 @@ const TransactionForm: React.FC<TransactionFormProps> = ({
  matchingRepaymentContact.isOwedToMe ? 'they_owe_me' : 'i_owe_them'
  );
 
+ showToast('success', 'Saved & Settled', `Recorded transaction and settled ₹${finalAmount.toFixed(2)} with ${matchingRepaymentContact.contact.name}`);
  onClose();
  };
 
@@ -349,7 +350,7 @@ const TransactionForm: React.FC<TransactionFormProps> = ({
   setNewPersonName('');
   setCreatingContactForRowId(null);
   if (targetRowId) {
-   handleRowChange(targetRowId, { contactId: existing.id, label: undefined });
+   handleRowChange(targetRowId, { contactId: existing.id, label: existing.name });
   }
   return;
  }
@@ -361,7 +362,7 @@ const TransactionForm: React.FC<TransactionFormProps> = ({
 
  if (targetRowId) {
   // Direct update to the split row where user chose "+ Add new contact..."
-  handleRowChange(targetRowId, { contactId: created.id, label: undefined });
+  handleRowChange(targetRowId, { contactId: created.id, label: created.name });
  } else {
   // Added from "+ Add Person" button
   handleAddNamedPerson(created.id);
@@ -384,9 +385,12 @@ const TransactionForm: React.FC<TransactionFormProps> = ({
  return;
  }
 
+ const matchedContact = contacts.find(c => c.id === targetContactId);
+
  const newRow: SplitRowState = {
  id: generateId('split'),
  contactId: targetContactId,
+ label: matchedContact?.name,
  amount: 0,
  direction: 'they_owe_me',
  settled: false,
@@ -995,6 +999,11 @@ const TransactionForm: React.FC<TransactionFormProps> = ({
  className="flex-1 rounded-xl border border-line bg-sunken px-2.5 py-1.5 text-xs font-bold text-ink-1 focus:outline-none focus:ring-1 focus:ring-primary"
  >
  <option value="">{row.label || `Person ${index + 1} (unnamed)`}</option>
+ {row.contactId && !contacts.some(c => c.id === row.contactId) && (
+  <option key={row.contactId} value={row.contactId}>
+   {row.label || 'Contact'}
+  </option>
+ )}
  {contacts.map(c => (
  <option key={c.id} value={c.id}>
  {c.name}

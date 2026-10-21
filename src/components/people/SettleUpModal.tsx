@@ -163,6 +163,7 @@ const SettleUpForm: React.FC<SettleUpFormProps> = ({
         linkedTransactionId: selectedTxId || undefined,
         direction,
       });
+      showToast('success', 'Settlement Updated', `Settlement of ₹${parsed} with ${contact.name} was updated.`);
     } else {
       recordSettlement(
         contact.id,
@@ -174,6 +175,7 @@ const SettleUpForm: React.FC<SettleUpFormProps> = ({
         selectedTxId || undefined,
         direction
       );
+      showToast('success', 'Settlement Recorded', `Settled ₹${parsed} with ${contact.name}.`);
     }
 
     onClose();
