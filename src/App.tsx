@@ -110,7 +110,7 @@ const MainContent: React.FC = () => {
       <Sidebar onOpenAddTx={handleOpenAddTx} />
 
       {/* Main Workspace Area */}
-      <div className="flex-1 flex flex-col min-w-0 max-w-full pb-20 lg:pb-8 overflow-x-clip">
+      <div className="flex-1 flex flex-col min-w-0 max-w-full pb-[calc(5rem+env(safe-area-inset-bottom,0px))] lg:pb-8 overflow-x-clip">
         {/* Top Navbar */}
         <Navbar
           onOpenAddTx={handleOpenAddTx}

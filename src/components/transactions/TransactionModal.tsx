@@ -1,11 +1,12 @@
+import { generateId } from '../../utils/id';
 import React, { useState, useMemo, useCallback } from 'react';
 import { Modal } from '../common/Modal';
 import { useFinance } from '../../context/FinanceContext';
 import { Transaction, TransactionType, PaymentMethod, OwedDirection, SplitEntry } from '../../types/finance';
 import { numberToWordsINR, formatINR, roundCurrency, splitAmountEqually } from '../../utils/currency';
-import { getTodayString, sanitizeDateString } from '../../utils/date';
+import { getTodayString, sanitizeDateString, todayLocal } from '../../utils/date';
 import { suggestCategory } from '../../utils/categoryMatcher';
-import { Sparkles, Users, Check, X, Lock, Unlock, Plus, Trash2, CheckCircle2, Circle, Zap } from 'lucide-react';
+import { Sparkles, Users, Check, X, Lock, Unlock, Plus, Trash2, CheckCircle2, Circle, Zap, CalendarClock } from 'lucide-react';
 import { useSubmitOnce } from '../../hooks/useSubmitOnce';
 import { MAX_AMOUNT, MIN_AMOUNT, MIN_DATE_STRING, getMaxDateString, isValidAmount, isValidDate, roundMoney } from '../../utils/validation';
 import { DEFAULT_UPI_PRESETS } from '../../constants/quickLogPresets';
@@ -134,7 +135,7 @@ const TransactionForm: React.FC<TransactionFormProps> = ({
   const [splitRows, setSplitRows] = useState<SplitRowState[]>(() => {
     if (initialTransaction?.splitWith && initialTransaction.splitWith.length > 0) {
       return initialTransaction.splitWith.map(s => ({
-        id: s.id || `split-${Date.now()}-${Math.random().toString(36).substring(2, 6)}`,
+        id: s.id || generateId('split'),
         contactId: s.contactId,
         label: s.label,
         amount: s.amount,
@@ -148,7 +149,7 @@ const TransactionForm: React.FC<TransactionFormProps> = ({
     if (initialContactId) {
       return [
         {
-          id: `split-${Date.now()}-${Math.random().toString(36).substring(2, 6)}`,
+          id: generateId('split'),
           contactId: initialContactId,
           amount: 0,
           direction: 'they_owe_me',
@@ -218,20 +219,20 @@ const TransactionForm: React.FC<TransactionFormProps> = ({
 
  const parsedAmount = parseFloat(amount);
  if (isNaN(parsedAmount) || !isValidAmount(parsedAmount)) {
- alert(`Please enter a valid amount between ₹${MIN_AMOUNT} and ₹${MAX_AMOUNT.toLocaleString('en-IN')}`);
+ showToast('danger', 'Invalid Amount', `Please enter a valid amount between ₹${MIN_AMOUNT} and ₹${MAX_AMOUNT.toLocaleString('en-IN')}`);
  reset();
  return;
  }
 
  const sanitizedDate = sanitizeDateString(date);
  if (!sanitizedDate || !isValidDate(sanitizedDate)) {
- alert(`Please enter a valid date between ${MIN_DATE_STRING} and ${getMaxDateString()}`);
+ showToast('danger', 'Invalid Date', `Please enter a valid date between ${MIN_DATE_STRING} and ${getMaxDateString()}`);
  reset();
  return;
  }
 
  if (!category || !category.trim()) {
- alert('Please select a valid category');
+ showToast('danger', 'Missing Category', 'Please select a valid category');
  reset();
  return;
  }
@@ -342,7 +343,7 @@ const TransactionForm: React.FC<TransactionFormProps> = ({
  if (!trimmed) return;
  const existing = contacts.find(c => c.name.trim().toLowerCase() === trimmed.toLowerCase());
  if (existing) {
-  alert(`A contact named "${existing.name}" already exists.`);
+  showToast('warning', 'Contact Exists', `A contact named "${existing.name}" already exists.`);
   const targetRowId = creatingContactForRowId;
   setIsCreatingContact(false);
   setNewPersonName('');
@@ -384,7 +385,7 @@ const TransactionForm: React.FC<TransactionFormProps> = ({
  }
 
  const newRow: SplitRowState = {
- id: `split-${Date.now()}-${Math.random().toString(36).substring(2, 6)}`,
+ id: generateId('split'),
  contactId: targetContactId,
  amount: 0,
  direction: 'they_owe_me',
@@ -407,7 +408,7 @@ const TransactionForm: React.FC<TransactionFormProps> = ({
  const newRows: SplitRowState[] = [];
  for (let i = 0; i < count; i++) {
  newRows.push({
- id: `split-${Date.now()}-${i}-${Math.random().toString(36).substring(2, 6)}`,
+ id: generateId('split'),
  label: `Person ${currentCount + i + 1} (unnamed)`,
  amount: 0,
  direction: 'they_owe_me',
@@ -439,7 +440,7 @@ const TransactionForm: React.FC<TransactionFormProps> = ({
  if (updates.contactId) {
  const isDuplicate = splitRows.some(r => r.id !== rowId && r.contactId === updates.contactId);
  if (isDuplicate) {
- alert('This person is already added to this split.');
+ showToast('warning', 'Duplicate Participant', 'This person is already added to this split.');
  return;
  }
  }
@@ -799,6 +800,12 @@ const TransactionForm: React.FC<TransactionFormProps> = ({
  onChange={e => setDate(e.target.value)}
  className="font-numeric tabular-nums w-full rounded-xl border border-line bg-sunken px-3.5 py-2.5 text-sm text-ink-1 focus:border-primary focus:ring-1 focus:ring-primary focus:outline-none"
  />
+ {date > todayLocal() && (
+   <div className="mt-1.5 flex items-center gap-1.5 text-xs text-amber-600 dark:text-amber-400 font-medium">
+     <CalendarClock className="w-3.5 h-3.5 shrink-0" />
+     <span>Scheduled for {date} (Future-dated transaction)</span>
+   </div>
+ )}
  </div>
  </div>
 
@@ -1180,6 +1187,11 @@ export const TransactionModal: React.FC<TransactionModalProps> = ({
   initialTransaction,
   initialContactId,
 }) => {
+  const [hasBeenOpened, setHasBeenOpened] = useState(isOpen);
+  if (isOpen && !hasBeenOpened) {
+    setHasBeenOpened(true);
+  }
+
   return (
     <Modal
       isOpen={isOpen}
@@ -1187,7 +1199,7 @@ export const TransactionModal: React.FC<TransactionModalProps> = ({
       title={initialTransaction ? 'Edit Transaction' : 'Add New Transaction'}
       subtitle={initialTransaction ? 'Update transaction details' : 'Log an expense, income, or transfer entry'}
     >
-      {isOpen && (
+      {hasBeenOpened && (
         <TransactionForm
           key={initialTransaction?.id ?? initialContactId ?? 'new'}
           onClose={onClose}

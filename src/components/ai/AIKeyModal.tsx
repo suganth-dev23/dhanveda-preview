@@ -67,7 +67,7 @@ const AIKeyForm: React.FC<AIKeyFormProps> = ({ onClose, onSuccess }) => {
       model: DEFAULT_AI_MODELS[provider],
     });
 
-    showToast('success', 'AI Key Configured', 'Stored securely in your browser local storage.');
+    showToast('success', 'AI Key Configured', 'Stored locally in your browser database (not synced to Google Drive or any remote server).');
     setError(null);
     onSuccess?.();
     onClose();
@@ -174,7 +174,7 @@ const AIKeyForm: React.FC<AIKeyFormProps> = ({ onClose, onSuccess }) => {
           {/* Privacy Note */}
           <div className="flex items-center gap-2 p-2.5 rounded-xl bg-emerald-50/40 dark:bg-emerald-950/20 border border-emerald-100 dark:border-emerald-900/30 text-xs text-emerald-700 dark:text-emerald-400">
             <ShieldCheck className="w-4 h-4 shrink-0" />
-            <span>Zero-Telemetry: Stored only in browser local storage. Never sent to any DhanVeda servers.</span>
+            <span>Zero-Telemetry: Stored locally in your browser database only (not synced). Never sent to any DhanVeda servers.</span>
           </div>
 
           {/* Action Buttons */}

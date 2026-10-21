@@ -85,7 +85,7 @@ export const AIHealthSummaryView: React.FC = () => {
      apiKey: apiKey.trim(),
      model: PROVIDER_INFO[provider].defaultModel,
    });
-   showToast('success', 'API Key Stored', 'Key stored securely in browser local storage.');
+   showToast('success', 'API Key Stored', 'Key stored locally in your browser database (not synced).');
  };
 
  const handleGenerate = async () => {

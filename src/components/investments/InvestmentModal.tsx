@@ -4,6 +4,7 @@ import { useFinance } from '../../context/FinanceContext';
 import { Investment, InvestmentType } from '../../types/finance';
 import { numberToWordsINR } from '../../utils/currency';
 import { useSubmitOnce } from '../../hooks/useSubmitOnce';
+import { todayLocal } from '../../utils/date';
 import { MAX_AMOUNT, MIN_AMOUNT, isValidAmount, roundMoney } from '../../utils/validation';
 
 interface InvestmentModalProps {
@@ -39,6 +40,7 @@ const InvestmentForm: React.FC<InvestmentFormProps> = ({
 
   const [name, setName] = useState(initialInvestment?.name || '');
   const [type, setType] = useState<InvestmentType>(initialInvestment?.type || 'Mutual Funds');
+  const [startDate, setStartDate] = useState(initialInvestment?.startDate || todayLocal());
   const [investedAmount, setInvestedAmount] = useState(initialInvestment ? initialInvestment.investedAmount.toString() : '');
   const [currentValue, setCurrentValue] = useState(initialInvestment ? initialInvestment.currentValue.toString() : '');
   const [sipAmount, setSipAmount] = useState(initialInvestment?.sipAmount ? initialInvestment.sipAmount.toString() : '');
@@ -171,6 +173,7 @@ const InvestmentForm: React.FC<InvestmentFormProps> = ({
       updateInvestment(initialInvestment.id, {
         name: name.trim(),
         type,
+        startDate,
         investedAmount: finalInv,
         currentValue: finalCurr,
         sipAmount: sip,
@@ -182,6 +185,7 @@ const InvestmentForm: React.FC<InvestmentFormProps> = ({
       addInvestment({
         name: name.trim(),
         type,
+        startDate,
         investedAmount: finalInv,
         currentValue: finalCurr,
         sipAmount: sip,
@@ -228,6 +232,18 @@ const InvestmentForm: React.FC<InvestmentFormProps> = ({
                 </option>
               ))}
             </select>
+          </div>
+
+          <div>
+            <label className="block text-xs font-bold uppercase tracking-wider text-ink-3 mb-1.5">
+              Purchase / Inception Date *
+            </label>
+            <input
+              type="date"
+              value={startDate}
+              onChange={e => setStartDate(e.target.value)}
+              className="w-full rounded-xl border border-line bg-sunken px-3.5 py-2.5 text-sm text-ink-1 focus:border-primary focus:ring-1 focus:ring-primary focus:outline-none"
+            />
           </div>
         </div>
 

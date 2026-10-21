@@ -17,6 +17,8 @@ import { DreamModal } from './DreamModal';
 import { DreamContributionModal } from './DreamContributionModal';
 import { useStaggerChildren } from '../../hooks/useStaggerChildren';
 import { Button, Card, Money, Stat, Progress } from '../ui';
+import { ConfirmDialog } from '../common/ConfirmDialog';
+import { useToast } from '../../context/ToastContext';
 
 export const DreamsView: React.FC = () => {
   const { containerRef: dreamGridRef, getChildStyle } = useStaggerChildren(60);
@@ -27,6 +29,8 @@ export const DreamsView: React.FC = () => {
 
   const [isContributionOpen, setIsContributionOpen] = useState(false);
   const [targetContributionDream, setTargetContributionDream] = useState<DreamGoal | null>(null);
+  const { showToast } = useToast();
+  const [dreamToDelete, setDreamToDelete] = useState<DreamGoal | null>(null);
 
   const cappedGoalsSaved = useMemo(() => {
     return dreams.reduce((acc, d) => acc + Math.min(Math.max(0, d.currentSaved || 0), d.targetAmount || 0), 0);
@@ -246,11 +250,7 @@ export const DreamsView: React.FC = () => {
                         <Edit3 className="w-3.5 h-3.5" />
                       </button>
                       <button
-                        onClick={() => {
-                          if (window.confirm(`Delete goal "${dream.name}"?`)) {
-                            deleteDream(dream.id);
-                          }
-                        }}
+                        onClick={() => setDreamToDelete(dream)}
                         className="press flex h-8 w-8 items-center justify-center rounded-xl border border-line text-ink-3 hover:text-rose-600 hover:bg-rose-50 dark:hover:bg-rose-950/40 transition-colors"
                         title="Delete Goal"
                       >
@@ -362,6 +362,22 @@ export const DreamsView: React.FC = () => {
         onClose={() => setIsContributionOpen(false)}
         dream={targetContributionDream}
       />
-    </div>
+    
+      <ConfirmDialog
+        isOpen={Boolean(dreamToDelete)}
+        title="Delete Goal"
+        message={dreamToDelete ? `Are you sure you want to delete goal "${dreamToDelete.name}"?` : ''}
+        confirmLabel="Delete"
+        variant="danger"
+        onConfirm={() => {
+          if (dreamToDelete) {
+            deleteDream(dreamToDelete.id);
+            showToast('info', 'Goal Removed', `Goal "${dreamToDelete.name}" was removed.`);
+            setDreamToDelete(null);
+          }
+        }}
+        onCancel={() => setDreamToDelete(null)}
+      />
+</div>
   );
 };

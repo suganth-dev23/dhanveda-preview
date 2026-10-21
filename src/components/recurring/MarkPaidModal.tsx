@@ -6,6 +6,7 @@ import { numberToWordsINR } from '../../utils/currency';
 import { Money } from '../ui';
 import { formatDate, getTodayString, sanitizeDateString } from '../../utils/date';
 import { useSubmitOnce } from '../../hooks/useSubmitOnce';
+import { useToast } from '../../context/ToastContext';
 import { MAX_AMOUNT, MIN_AMOUNT, MIN_DATE_STRING, getMaxDateString, isValidAmount, isValidDate, roundMoney } from '../../utils/validation';
 
 interface MarkPaidModalProps {
@@ -60,6 +61,7 @@ const MarkPaidForm: React.FC<MarkPaidFormProps> = ({
   const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>(payment.paymentMethod || 'UPI');
   const [paidDate, setPaidDate] = useState<string>(getTodayString());
   const { isSubmitting, startSubmit, reset } = useSubmitOnce();
+  const { showToast } = useToast();
 
   const parsedAmount = parseFloat(amountStr) || 0;
 
@@ -68,14 +70,14 @@ const MarkPaidForm: React.FC<MarkPaidFormProps> = ({
     if (!startSubmit()) return;
 
     if (parsedAmount <= 0 || !isValidAmount(parsedAmount)) {
-      alert(`Please enter a valid payment amount between ₹${MIN_AMOUNT} and ₹${MAX_AMOUNT.toLocaleString('en-IN')}`);
+      showToast('danger', 'Invalid Amount', `Please enter a valid payment amount between ₹${MIN_AMOUNT} and ₹${MAX_AMOUNT.toLocaleString('en-IN')}`);
       reset();
       return;
     }
 
     const sanitizedPaidDate = sanitizeDateString(paidDate) || getTodayString();
     if (!isValidDate(sanitizedPaidDate)) {
-      alert(`Please enter a valid payment date between ${MIN_DATE_STRING} and ${getMaxDateString()}`);
+      showToast('danger', 'Invalid Date', `Please enter a valid payment date between ${MIN_DATE_STRING} and ${getMaxDateString()}`);
       reset();
       return;
     }

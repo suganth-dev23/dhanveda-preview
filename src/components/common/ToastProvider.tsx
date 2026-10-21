@@ -1,3 +1,4 @@
+import { generateId } from '../../utils/id';
 import React, { useState, useCallback, useEffect } from 'react';
 import { createPortal } from 'react-dom';
 import { ToastCard, ToastItem, ToastVariant } from './Toast';
@@ -24,7 +25,7 @@ export const ToastProvider: React.FC<ToastProviderProps> = ({ children }) => {
     duration = 3500,
     action?: { label: string; onClick: () => void }
   ) => {
-    const id = `toast-${Date.now()}-${Math.random().toString(36).substring(2, 6)}`;
+    const id = generateId('toast');
     const newToast: ToastItem = { id, variant, title, message, duration, action };
 
     setToasts(prev => {

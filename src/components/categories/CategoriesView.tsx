@@ -4,6 +4,8 @@ import { useFinance } from '../../context/FinanceContext';
 import { Category } from '../../types/finance';
 import { IconRenderer } from '../common/IconRenderer';
 import { CategoryModal } from './CategoryModal';
+import { ConfirmDialog } from '../common/ConfirmDialog';
+import { useToast } from '../../context/ToastContext';
 import { useStaggerChildren } from '../../hooks/useStaggerChildren';
 import { Button, Card, Money, Stat } from '../ui';
 
@@ -18,6 +20,8 @@ export const CategoriesView: React.FC = () => {
 
  const [isModalOpen, setIsModalOpen] = useState(false);
  const [selectedCategory, setSelectedCategory] = useState<Category | null>(null);
+  const { showToast } = useToast();
+  const [categoryToDelete, setCategoryToDelete] = useState<{ cat: Category; message: string } | null>(null);
 
  const spendingMap = new Map(categorySpendingThisMonth.map(c => [c.category.toLowerCase(), c.spent]));
 
@@ -36,7 +40,7 @@ export const CategoriesView: React.FC = () => {
 
  const handleDeleteCategory = (cat: Category) => {
  if (!cat.isCustom) {
- alert(`Default system category "${cat.name}" cannot be deleted.`);
+ showToast('warning', 'Default Category', `Default system category "${cat.name}" cannot be deleted.`);
  return;
  }
 
@@ -46,16 +50,14 @@ export const CategoriesView: React.FC = () => {
 
  let confirmMsg: string;
  if (txCount > 0) {
- confirmMsg = `Warning: "${cat.name}" is used in ${txCount} existing transaction${
+ confirmMsg = `"${cat.name}" is used in ${txCount} existing transaction${
  txCount > 1 ? 's' : ''
- }. Deleting it will leave those transactions without a defined category. Are you sure you want to proceed?`;
+ }. Existing transactions will be safely reassigned to "Others". Proceed with deletion?`;
  } else {
- confirmMsg = `Delete custom category "${cat.name}"?`;
+ confirmMsg = `Are you sure you want to delete custom category "${cat.name}"?`;
  }
 
- if (window.confirm(confirmMsg)) {
- deleteCategory(cat.id);
- }
+ setCategoryToDelete({ cat, message: confirmMsg });
  };
 
  return (
@@ -229,6 +231,22 @@ export const CategoriesView: React.FC = () => {
  onClose={() => setIsModalOpen(false)}
  initialCategory={selectedCategory}
  />
- </div>
+ 
+      <ConfirmDialog
+        isOpen={Boolean(categoryToDelete)}
+        title="Delete Category"
+        message={categoryToDelete?.message || ''}
+        confirmLabel="Delete"
+        variant="danger"
+        onConfirm={() => {
+          if (categoryToDelete) {
+            deleteCategory(categoryToDelete.cat.id, 'Others');
+            showToast('info', 'Category Deleted', `Category "${categoryToDelete.cat.name}" was deleted.`);
+            setCategoryToDelete(null);
+          }
+        }}
+        onCancel={() => setCategoryToDelete(null)}
+      />
+</div>
  );
 };

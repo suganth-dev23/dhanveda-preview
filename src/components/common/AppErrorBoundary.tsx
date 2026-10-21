@@ -17,6 +17,7 @@ interface State {
   confirmText: string;
   isExporting: boolean;
   isResetting: boolean;
+  actionFeedback?: string;
 }
 
 export class AppErrorBoundary extends Component<Props, State> {
@@ -114,7 +115,7 @@ export class AppErrorBoundary extends Component<Props, State> {
       URL.revokeObjectURL(url);
     } catch (err) {
       console.error('[AppErrorBoundary] Raw data export failed:', err);
-      alert('Could not export raw database records: ' + String(err));
+      this.setState({ actionFeedback: 'Could not export raw database records: ' + String(err) });
     } finally {
       this.setState({ isExporting: false });
     }
@@ -122,7 +123,7 @@ export class AppErrorBoundary extends Component<Props, State> {
 
   handleConfirmReset = async () => {
     if (this.state.confirmText.trim().toUpperCase() !== 'RESET') {
-      alert('Please type RESET exactly to confirm resetting data.');
+      this.setState({ actionFeedback: 'Please type RESET exactly to confirm resetting data.' });
       return;
     }
 
@@ -138,7 +139,7 @@ export class AppErrorBoundary extends Component<Props, State> {
       sessionStorage.clear();
       window.location.reload();
     } catch (e) {
-      alert('Failed to reset app data: ' + String(e));
+      this.setState({ actionFeedback: 'Failed to reset app data: ' + String(e) });
       this.setState({ isResetting: false });
     }
   };

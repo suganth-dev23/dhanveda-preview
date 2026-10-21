@@ -15,8 +15,9 @@ import { WealthCompoundingSimulator } from './WealthCompoundingSimulator';
 import { INDIAN_WEALTH_PALETTE } from '../../constants/theme';
 import { useStaggerChildren } from '../../hooks/useStaggerChildren';
 import { Button, Card, Money, Stat } from '../ui';
-import { calculateCAGR, getInvestmentInceptionDate } from '../../utils/investmentCalculations';
-import { getDaysSinceDate } from '../../utils/date';
+import { calculateInvestmentAnnualReturn } from '../../utils/investmentCalculations';
+import { ConfirmDialog } from '../common/ConfirmDialog';
+import { useToast } from '../../context/ToastContext';
 
 export const InvestmentsView: React.FC = () => {
  const { containerRef: assetGridRef, getChildStyle } = useStaggerChildren(50);
@@ -33,6 +34,8 @@ export const InvestmentsView: React.FC = () => {
  const safeTotalInvested = Number.isFinite(totalInvestedAmount) ? totalInvestedAmount : 0;
  const safeTotalGainLoss = Number.isFinite(totalInvestmentGainLoss) ? totalInvestmentGainLoss : 0;
  const safeTotalGainLossPct = Number.isFinite(totalInvestmentGainLossPct) ? totalInvestmentGainLossPct : 0;
+ const { showToast } = useToast();
+ const [investmentToDelete, setInvestmentToDelete] = useState<Investment | null>(null);
 
  const [isModalOpen, setIsModalOpen] = useState(false);
  const [selectedInvestment, setSelectedInvestment] = useState<Investment | null>(null);
@@ -395,15 +398,7 @@ export const InvestmentsView: React.FC = () => {
  const safeGainPct = Number.isFinite(gainPct) ? gainPct : 0;
  const isProfitable = gain >= 0;
 
- // Safe CAGR calculation if holding inception date is recorded (min 90 days)
- let cagrPct: number | null = null;
- const inceptionDate = getInvestmentInceptionDate(inv);
- if (inceptionDate && safeInv > 0 && safeVal > 0) {
- const daysHeld = getDaysSinceDate(inceptionDate);
- if (daysHeld !== null && daysHeld >= 90) {
- cagrPct = calculateCAGR(safeInv, safeVal, daysHeld / 365.25);
- }
- }
+ const annualMetric = calculateInvestmentAnnualReturn(inv);
 
  return (
  <tr key={inv.id} className="hover:bg-sunken/60 transition-colors">
@@ -447,9 +442,9 @@ export const InvestmentsView: React.FC = () => {
  >
  {isProfitable ? '+' : ''}{safeGainPct.toFixed(1)}% (<Money value={gain} sign="always" tone={isProfitable ? 'positive' : 'negative'} size="xs" />)
  </span>
- {cagrPct !== null && (
+ {annualMetric !== null && (
  <span className="text-xs text-ink-3 font-medium">
- CAGR: {cagrPct >= 0 ? '+' : ''}{cagrPct.toFixed(1)}% p.a.
+ {annualMetric.label}: {annualMetric.rate >= 0 ? '+' : ''}{annualMetric.rate.toFixed(1)}% p.a.
  </span>
  )}
  </div>
@@ -465,11 +460,7 @@ export const InvestmentsView: React.FC = () => {
  <Edit3 className="w-3.5 h-3.5" />
  </button>
  <button
- onClick={() => {
- if (window.confirm(`Delete holding "${inv.name}"?`)) {
- deleteInvestment(inv.id);
- }
- }}
+ onClick={() => setInvestmentToDelete(inv)}
  className="flex h-8 w-8 items-center justify-center rounded-xl border border-line text-ink-3 hover:text-rose-600 hover:bg-rose-50 dark:hover:bg-rose-950/40 transition-colors"
  title="Delete Holding"
  >
@@ -494,6 +485,22 @@ export const InvestmentsView: React.FC = () => {
  onClose={() => setIsModalOpen(false)}
  initialInvestment={selectedInvestment}
  />
- </div>
+ 
+      <ConfirmDialog
+        isOpen={Boolean(investmentToDelete)}
+        title="Delete Holding"
+        message={investmentToDelete ? `Are you sure you want to delete holding "${investmentToDelete.name}"?` : ''}
+        confirmLabel="Delete"
+        variant="danger"
+        onConfirm={() => {
+          if (investmentToDelete) {
+            deleteInvestment(investmentToDelete.id);
+            showToast('info', 'Holding Removed', `Holding "${investmentToDelete.name}" was deleted.`);
+            setInvestmentToDelete(null);
+          }
+        }}
+        onCancel={() => setInvestmentToDelete(null)}
+      />
+</div>
  );
 };

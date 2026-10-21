@@ -1,5 +1,7 @@
 import React, { useState } from 'react';
 import { Modal } from '../common/Modal';
+import { ConfirmDialog } from '../common/ConfirmDialog';
+import { useToast } from '../../context/ToastContext';
 import { useFinance } from '../../context/FinanceContext';
 import { Transaction, SplitEntry, OwedDirection } from '../../types/finance';
 import { formatINR, roundCurrency } from '../../utils/currency';
@@ -39,6 +41,8 @@ const EditSplitForm: React.FC<EditSplitFormProps> = ({
   const [amount, setAmount] = useState<string>(splitEntry.amount.toString());
   const [isSettled, setIsSettled] = useState<boolean>(splitEntry.settled);
   const { isSubmitting, startSubmit, reset } = useSubmitOnce();
+  const { showToast } = useToast();
+  const [isConfirmOpen, setIsConfirmOpen] = useState(false);
 
   const otherSplitsTotal = roundCurrency(
     (transaction.splitWith || [])
@@ -52,7 +56,7 @@ const EditSplitForm: React.FC<EditSplitFormProps> = ({
 
     const rawAmount = parseFloat(amount);
     if (isNaN(rawAmount) || !isValidAmount(rawAmount)) {
-      alert(`Please enter a valid split amount between ₹${MIN_AMOUNT} and ₹${MAX_AMOUNT.toLocaleString('en-IN')}`);
+      showToast('warning', 'Invalid Split Amount', `Please enter a valid split amount between ₹${MIN_AMOUNT} and ₹${MAX_AMOUNT.toLocaleString('en-IN')}`);
       reset();
       return;
     }
@@ -60,7 +64,9 @@ const EditSplitForm: React.FC<EditSplitFormProps> = ({
 
     const totalSplits = roundCurrency(otherSplitsTotal + parsedAmount);
     if (totalSplits > roundCurrency(transaction.amount) + 0.01) {
-      alert(
+      showToast(
+        'warning',
+        'Amount Exceeded',
         `Total splits (${formatINR(totalSplits)}) cannot exceed total transaction amount of ${formatINR(transaction.amount)}`
       );
       reset();
@@ -120,23 +126,25 @@ const EditSplitForm: React.FC<EditSplitFormProps> = ({
     onClose();
   };
 
-  const handleRemoveSplit = () => {
-    if (window.confirm('Remove this split entry from the transaction?')) {
-      if (!transaction.splitWith) return;
-      const updatedSplits = transaction.splitWith.filter(s => s.id !== splitEntry.id);
-      updateTransaction(transaction.id, {
-        splitWith: updatedSplits.length > 0 ? updatedSplits : undefined,
-      });
+  const handleConfirmRemove = () => {
+    if (!transaction.splitWith) return;
+    const updatedSplits = transaction.splitWith.filter(s => s.id !== splitEntry.id);
+    updateTransaction(transaction.id, {
+      splitWith: updatedSplits.length > 0 ? updatedSplits : undefined,
+    });
 
-      const existingSettlement = settlements.find(
-        s => s.sourceTransactionId === transaction.id && s.sourceSplitEntryId === splitEntry.id
-      );
-      if (existingSettlement) {
-        deleteSettlement(existingSettlement.id);
-      }
-
-      onClose();
+    const existingSettlement = settlements.find(
+      s => s.sourceTransactionId === transaction.id && s.sourceSplitEntryId === splitEntry.id
+    );
+    if (existingSettlement) {
+      deleteSettlement(existingSettlement.id);
     }
+    showToast('info', 'Split Removed', 'Split entry was removed from the transaction.');
+    onClose();
+  };
+
+  const handleRemoveSplit = () => {
+    setIsConfirmOpen(true);
   };
 
   const parsedAmount = roundCurrency(parseFloat(amount) || 0);
@@ -266,6 +274,15 @@ const EditSplitForm: React.FC<EditSplitFormProps> = ({
             </button>
           </div>
         </div>
+      <ConfirmDialog
+        isOpen={isConfirmOpen}
+        title="Remove Split Entry"
+        message="Are you sure you want to remove this split entry from the transaction?"
+        confirmLabel="Remove"
+        variant="danger"
+        onConfirm={handleConfirmRemove}
+        onCancel={() => setIsConfirmOpen(false)}
+      />
       </form>
   );
 };

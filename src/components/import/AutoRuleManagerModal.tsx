@@ -1,3 +1,4 @@
+import { generateId } from '../../utils/id';
 import React, { useState } from 'react';
 import { Modal } from '../common/Modal';
 import { Category, PaymentMethod } from '../../types/finance';
@@ -140,7 +141,7 @@ const AutoRuleManagerContent: React.FC<AutoRuleManagerContentProps> = ({
     }
 
     const newRule: AutoRule = {
-      id: `rule-${Date.now()}-${Math.random().toString(36).substring(2, 6)}`,
+      id: generateId('rule'),
       name: ruleName.trim() || undefined,
       patternType,
       pattern: validation.cleanPattern,

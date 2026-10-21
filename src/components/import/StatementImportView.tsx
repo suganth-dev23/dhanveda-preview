@@ -198,13 +198,13 @@ export const StatementImportView: React.FC = () => {
   const selected = stagedList.filter(t => t.selected);
 
   if (selected.length === 0) {
-   alert('Please select at least one transaction row to import.');
+   showToast('warning', 'Selection Required', 'Please select at least one transaction row to import.');
    return;
   }
 
   const invalidRow = selected.find(s => isNaN(s.amount) || s.amount <= 0);
   if (invalidRow) {
-   alert('All transactions to import must have an amount greater than ₹0.');
+   showToast('warning', 'Invalid Amount', 'All transactions to import must have an amount greater than ₹0.');
    return;
   }
 

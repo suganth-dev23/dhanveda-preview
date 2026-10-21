@@ -6,7 +6,7 @@ import {
   Trash2,
 } from 'lucide-react';
 import { Transaction, Category, Contact, SplitEntry } from '../../types/finance';
-import { formatDate } from '../../utils/date';
+import { formatDate, todayLocal } from '../../utils/date';
 import { formatINR } from '../../utils/currency';
 import { IconRenderer } from '../common/IconRenderer';
 import { Money } from '../ui/Money';
@@ -150,7 +150,12 @@ export const TransactionTableRow: React.FC<TransactionRowProps> = React.memo(fun
 
       {/* Date */}
       <td className="py-3.5 px-4 whitespace-nowrap text-xs text-ink-3 font-medium font-numeric">
-        {formatDate(tx.date)}
+        <div>{formatDate(tx.date)}</div>
+        {tx.date > todayLocal() && (
+          <span className="inline-block mt-0.5 px-1.5 py-0.2 rounded text-[10px] font-semibold bg-amber-500/10 text-amber-600 dark:text-amber-400">
+            Scheduled
+          </span>
+        )}
       </td>
 
       {/* Description */}
@@ -325,8 +330,13 @@ export const TransactionCardRow: React.FC<TransactionRowProps> = React.memo(func
                   {tx.person}
                 </span>
               )}
-              <span className="text-xs text-ink-3 font-numeric">
+              <span className="text-xs text-ink-3 font-numeric flex items-center gap-1">
                 {formatDate(tx.date)}
+                {tx.date > todayLocal() && (
+                  <span className="px-1 py-0.2 rounded text-[10px] font-semibold bg-amber-500/10 text-amber-600 dark:text-amber-400">
+                    Scheduled
+                  </span>
+                )}
               </span>
             </div>
             {Array.isArray(tx.splitWith) && tx.splitWith.length > 0 && (

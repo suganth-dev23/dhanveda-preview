@@ -19,12 +19,21 @@ import { formatINR } from '../../utils/currency';
 import { Money } from '../ui';
 import { formatDate } from '../../utils/date';
 import { SettleUpModal } from './SettleUpModal';
+import { ConfirmDialog } from '../common/ConfirmDialog';
+import { useToast } from '../../context/ToastContext';
 
 interface SettlementHistoryViewProps {
  onBackToContacts?: () => void;
 }
 
 export const SettlementHistoryView: React.FC<SettlementHistoryViewProps> = () => {
+ const { showToast } = useToast();
+ const [confirmDialog, setConfirmDialog] = useState<{
+   isOpen: boolean;
+   title: string;
+   message: string;
+   onConfirm: () => void;
+ } | null>(null);
  const {
  settlements,
  contacts,
@@ -105,19 +114,27 @@ export const SettlementHistoryView: React.FC<SettlementHistoryViewProps> = () =>
  const handleDelete = (settlement: SettlementRecord) => {
  const contact = contactMap.get(settlement.contactId);
  const name = contact ? contact.name : 'this contact';
- if (
- window.confirm(
- `Are you sure you want to delete this settlement of ${formatINR(settlement.amount)} with ${name}? This will restore the open balance.`
- )
- ) {
- deleteSettlement(settlement.id);
- }
+ setConfirmDialog({
+   isOpen: true,
+   title: 'Delete Settlement',
+   message: `Are you sure you want to delete this settlement of ${formatINR(settlement.amount)} with ${name}? This will restore the open balance.`,
+   onConfirm: () => {
+     deleteSettlement(settlement.id);
+     showToast('info', 'Settlement Deleted', 'Settlement record removed and balance restored.');
+   },
+ });
  };
 
  const handleUnlink = (settlementId: string) => {
- if (window.confirm('Unlink this settlement from the bank transaction?')) {
- linkSettlementToTransaction(settlementId, undefined);
- }
+ setConfirmDialog({
+   isOpen: true,
+   title: 'Unlink Settlement',
+   message: 'Unlink this settlement from the bank transaction?',
+   onConfirm: () => {
+     linkSettlementToTransaction(settlementId, undefined);
+     showToast('info', 'Settlement Unlinked', 'Settlement unlinked from bank transaction.');
+   },
+ });
  };
 
  return (
@@ -379,6 +396,19 @@ export const SettlementHistoryView: React.FC<SettlementHistoryViewProps> = () =>
  initialSettlement={linkModalSettlement.settlement}
  />
  )}
- </div>
+ 
+      <ConfirmDialog
+        isOpen={Boolean(confirmDialog?.isOpen)}
+        title={confirmDialog?.title || 'Confirm Action'}
+        message={confirmDialog?.message || ''}
+        confirmLabel="Confirm"
+        variant="danger"
+        onConfirm={() => {
+          if (confirmDialog?.onConfirm) confirmDialog.onConfirm();
+          setConfirmDialog(null);
+        }}
+        onCancel={() => setConfirmDialog(null)}
+      />
+</div>
  );
 };

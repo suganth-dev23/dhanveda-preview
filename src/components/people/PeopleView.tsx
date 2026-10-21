@@ -29,8 +29,17 @@ import { AddContactModal } from './AddContactModal';
 import { SettlementHistoryView } from './SettlementHistoryView';
 import { SettleSplitModal } from './SettleSplitModal';
 import { TransactionModal } from '../transactions/TransactionModal';
+import { ConfirmDialog } from '../common/ConfirmDialog';
+import { useToast } from '../../context/ToastContext';
 
 export const PeopleView: React.FC = () => {
+ const { showToast } = useToast();
+ const [confirmDialog, setConfirmDialog] = useState<{
+   isOpen: boolean;
+   title: string;
+   message: string;
+   onConfirm: () => void;
+ } | null>(null);
  const {
  contacts,
  transactions,
@@ -94,9 +103,15 @@ export const PeopleView: React.FC = () => {
  : '';
  const confirmMsg = `Are you sure you want to delete "${contact.name}"?${unsettledWarning}\nAll their split entries will be unlinked (preserved in Unassigned Splits) and their settlement history will be removed. This cannot be undone.`;
 
- if (window.confirm(confirmMsg)) {
- deleteContact(contact.id);
- }
+ setConfirmDialog({
+   isOpen: true,
+   title: 'Delete Contact',
+   message: confirmMsg,
+   onConfirm: () => {
+     deleteContact(contact.id);
+     showToast('info', 'Contact Deleted', `Contact "${contact.name}" was removed.`);
+   },
+ });
  };
 
  // Split contacts into active (non-zero balance) and settled (zero balance)
@@ -948,9 +963,15 @@ export const PeopleView: React.FC = () => {
 
  <button
  onClick={() => {
- if (window.confirm('Delete this settlement record?')) {
- deleteSettlement(set.id);
- }
+   setConfirmDialog({
+     isOpen: true,
+     title: 'Delete Settlement',
+     message: 'Are you sure you want to delete this settlement record? Unsettled balances will be recalculated.',
+     onConfirm: () => {
+       deleteSettlement(set.id);
+       showToast('info', 'Settlement Deleted', 'Settlement record was deleted.');
+     },
+   });
  }}
  className="text-ink-3 hover:text-rose-600 p-1 rounded-md transition-colors"
  title="Delete Settlement"
@@ -1081,6 +1102,19 @@ export const PeopleView: React.FC = () => {
  initialContactId={splitModalContact.id}
  />
  )}
- </div>
+ 
+      <ConfirmDialog
+        isOpen={Boolean(confirmDialog?.isOpen)}
+        title={confirmDialog?.title || 'Confirm Action'}
+        message={confirmDialog?.message || ''}
+        confirmLabel="Delete"
+        variant="danger"
+        onConfirm={() => {
+          if (confirmDialog?.onConfirm) confirmDialog.onConfirm();
+          setConfirmDialog(null);
+        }}
+        onCancel={() => setConfirmDialog(null)}
+      />
+</div>
  );
 };

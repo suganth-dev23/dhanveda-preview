@@ -25,9 +25,18 @@ import { googleAuthService } from '../../services/googleAuth';
 import { GoogleSyncSetupModal } from './GoogleSyncSetupModal';
 import { getTodayString } from '../../utils/date';
 import { StatementImportView } from '../import/StatementImportView';
+import { ConfirmDialog } from '../common/ConfirmDialog';
 import { useToast } from '../../context/ToastContext';
 
 export const SettingsView: React.FC = () => {
+  const [confirmDialog, setConfirmDialog] = useState<{
+    isOpen: boolean;
+    title: string;
+    message: string;
+    confirmLabel?: string;
+    variant?: 'danger' | 'warning' | 'primary';
+    onConfirm: () => void;
+  } | null>(null);
  const { showToast } = useToast();
  const {
  aiSettings,
@@ -242,12 +251,21 @@ export const SettingsView: React.FC = () => {
  return;
  }
 
- const ok = importBackupJSON(content, { onToast: showToast });
- if (ok) {
- setImportStatus('Backup restored successfully!');
- } else {
- setImportStatus('Restore was cancelled or rejected.');
- }
+ setConfirmDialog({
+   isOpen: true,
+   title: 'Restore Database Backup',
+   message: 'Replace your current data with this backup? A safety backup will automatically be downloaded. This cannot be undone.',
+   confirmLabel: 'Restore Backup',
+   variant: 'warning',
+   onConfirm: () => {
+     const ok = importBackupJSON(content, { onToast: showToast, skipConfirm: true });
+     if (ok) {
+       setImportStatus('Backup restored successfully!');
+     } else {
+       setImportStatus('Restore was cancelled or rejected.');
+     }
+   },
+ });
  } catch (err) {
  console.error('Restore error:', err);
  setImportStatus('Invalid JSON file format.');
@@ -483,9 +501,17 @@ export const SettingsView: React.FC = () => {
  <button
  type="button"
  onClick={() => {
- if (window.confirm('Disconnect Google Drive? Your local financial records will remain completely intact.')) {
- disconnectDrive();
- }
+ setConfirmDialog({
+  isOpen: true,
+  title: 'Disconnect Google Drive',
+  message: 'Disconnect Google Drive? Your local financial records will remain completely intact.',
+  confirmLabel: 'Disconnect',
+  variant: 'warning',
+  onConfirm: () => {
+    disconnectDrive();
+    showToast('info', 'Drive Disconnected', 'Google Drive was disconnected.');
+  },
+});
  }}
  className="press flex items-center gap-1.5 px-3.5 py-2.5 min-h-[44px] bg-sunken hover:bg-negative-tint hover:text-negative text-ink-2 rounded-xl text-xs font-bold transition-colors"
  >
@@ -681,7 +707,7 @@ export const SettingsView: React.FC = () => {
  onClick={() => {
  localStorage.removeItem('dhanveda_setup_checklist_dismissed');
  window.dispatchEvent(new CustomEvent('dhanveda-checklist-reset'));
- alert('Setup checklist reset. Return to Dashboard to view.');
+ showToast('success', 'Checklist Reset', 'Setup checklist has been reset. Return to Dashboard to view.');
  }}
  className="press self-start sm:self-auto px-3.5 py-2.5 min-h-[44px] rounded-xl border border-line bg-surface hover:bg-sunken text-xs font-bold text-ink-1 transition-colors flex items-center gap-1.5 shadow-xs"
  >
@@ -871,10 +897,17 @@ export const SettingsView: React.FC = () => {
  <button
  type="button"
  onClick={() => {
- if (window.confirm('Reset app state to realistic Indian sample demo data? (Swiggy, Zepto, HDFC Salary, SIPs, Gold, Goals)')) {
- resetToDemoData();
- alert('Demo data loaded successfully!');
- }
+ setConfirmDialog({
+  isOpen: true,
+  title: 'Load Realistic Sample Data',
+  message: 'Reset app state to realistic Indian sample demo data? (Swiggy, Zepto, HDFC Salary, SIPs, Gold, Goals)',
+  confirmLabel: 'Load Sample Data',
+  variant: 'warning',
+  onConfirm: () => {
+    resetToDemoData();
+    showToast('success', 'Demo Data Loaded', 'Sample data loaded successfully.');
+  },
+});
  }}
  className="flex items-center gap-1.5 text-xs font-bold text-primary hover:underline min-h-[44px]"
  >
@@ -885,10 +918,17 @@ export const SettingsView: React.FC = () => {
  <button
  type="button"
  onClick={() => {
- if (window.confirm('WARNING: Are you sure you want to permanently clear all data from this browser?')) {
- clearAllData();
- alert('All data has been cleared.');
- }
+ setConfirmDialog({
+  isOpen: true,
+  title: 'Clear All Local Data',
+  message: 'WARNING: Are you sure you want to permanently clear all data from this browser? This cannot be undone.',
+  confirmLabel: 'Permanently Wipe Data',
+  variant: 'danger',
+  onConfirm: () => {
+    clearAllData();
+    showToast('info', 'Data Cleared', 'All local data has been permanently cleared.');
+  },
+});
  }}
  className="flex items-center gap-1.5 text-xs font-bold text-negative hover:underline min-h-[44px]"
  >
@@ -905,6 +945,19 @@ export const SettingsView: React.FC = () => {
  />
  </>
  )}
- </div>
+ 
+      <ConfirmDialog
+        isOpen={Boolean(confirmDialog?.isOpen)}
+        title={confirmDialog?.title || 'Confirm Action'}
+        message={confirmDialog?.message || ''}
+        confirmLabel={confirmDialog?.confirmLabel || 'Confirm'}
+        variant={confirmDialog?.variant || 'primary'}
+        onConfirm={() => {
+          if (confirmDialog?.onConfirm) confirmDialog.onConfirm();
+          setConfirmDialog(null);
+        }}
+        onCancel={() => setConfirmDialog(null)}
+      />
+</div>
  );
 };

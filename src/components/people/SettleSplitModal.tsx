@@ -1,5 +1,7 @@
 import React, { useState, useMemo } from 'react';
 import { Modal } from '../common/Modal';
+import { ConfirmDialog } from '../common/ConfirmDialog';
+import { useToast } from '../../context/ToastContext';
 import { useFinance } from '../../context/FinanceContext';
 import { Contact, Transaction, SplitEntry } from '../../types/finance';
 import { Money } from '../ui';
@@ -70,6 +72,8 @@ const SettleSplitForm: React.FC<SettleSplitFormProps> = ({
   const [searchQuery, setSearchQuery] = useState<string>('');
   const [filterMode, setFilterMode] = useState<'all' | 'exact' | 'credits'>('all');
   const { isSubmitting, startSubmit, reset } = useSubmitOnce();
+  const { showToast } = useToast();
+  const [isConfirmUnsettleOpen, setIsConfirmUnsettleOpen] = useState(false);
 
   // Expected type: if they owe me, bank repayment is a credit
   const expectedTxType = splitEntry.direction === 'they_owe_me' ? 'credit' : 'debit';
@@ -143,20 +147,20 @@ const SettleSplitForm: React.FC<SettleSplitFormProps> = ({
     if (!startSubmit()) return;
 
     if (parsedSettledAmount <= 0 || !isValidAmount(parsedSettledAmount)) {
-      alert(`Please enter a valid settlement amount between ₹${MIN_AMOUNT} and ₹${MAX_AMOUNT.toLocaleString('en-IN')}`);
+      showToast('warning', 'Invalid Amount', `Please enter a valid settlement amount between ₹${MIN_AMOUNT} and ₹${MAX_AMOUNT.toLocaleString('en-IN')}`);
       reset();
       return;
     }
 
     if (parsedSettledAmount > roundCurrency(splitEntry.amount) + 0.01) {
-      alert(`Settled amount (₹${parsedSettledAmount}) cannot exceed the owed share (₹${splitEntry.amount})`);
+      showToast('warning', 'Amount Exceeded', `Settled amount (₹${parsedSettledAmount}) cannot exceed the owed share (₹${splitEntry.amount})`);
       reset();
       return;
     }
 
     const sanitizedDate = sanitizeDateString(date) || getTodayString();
     if (!isValidDate(sanitizedDate)) {
-      alert(`Please enter a valid date between ${MIN_DATE_STRING} and ${getMaxDateString()}`);
+      showToast('warning', 'Invalid Date', `Please enter a valid date between ${MIN_DATE_STRING} and ${getMaxDateString()}`);
       reset();
       return;
     }
@@ -173,10 +177,7 @@ const SettleSplitForm: React.FC<SettleSplitFormProps> = ({
   };
 
   const handleUnsettle = () => {
-    if (window.confirm(`Mark this split expense for "${transaction.description}" as unsettled?`)) {
-      settleSplitEntry(transaction.id, splitEntry.id, { settled: false });
-      onClose();
-    }
+    setIsConfirmUnsettleOpen(true);
   };
 
   return (
@@ -487,7 +488,20 @@ const SettleSplitForm: React.FC<SettleSplitFormProps> = ({
             </button>
           </div>
         </div>
-      </form>
+        <ConfirmDialog
+        isOpen={isConfirmUnsettleOpen}
+        title="Unsettle Split"
+        message={`Mark this split expense for "${transaction.description}" as unsettled?`}
+        confirmLabel="Unsettle"
+        variant="warning"
+        onConfirm={() => {
+          settleSplitEntry(transaction.id, splitEntry.id, { settled: false });
+          setIsConfirmUnsettleOpen(false);
+          onClose();
+        }}
+        onCancel={() => setIsConfirmUnsettleOpen(false)}
+      />
+    </form>
   );
 };
 

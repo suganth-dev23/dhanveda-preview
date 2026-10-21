@@ -1,6 +1,7 @@
 import React, { useState, useMemo } from 'react';
 import { Modal } from '../common/Modal';
 import { useFinance } from '../../context/FinanceContext';
+import { useToast } from '../../context/ToastContext';
 import { Contact, SettlementRecord, Transaction, TransactionType, OwedDirection } from '../../types/finance';
 import { Money } from '../ui';
 import { formatDate, getTodayString, sanitizeDateString } from '../../utils/date';
@@ -68,6 +69,7 @@ const SettleUpForm: React.FC<SettleUpFormProps> = ({
   });
   const [txSearchQuery, setTxSearchQuery] = useState<string>('');
   const { isSubmitting, startSubmit, reset } = useSubmitOnce();
+  const { showToast } = useToast();
 
   // Expected transaction type in bank account:
   // If they owe me and repay me -> money enters account -> CREDIT
@@ -141,14 +143,14 @@ const SettleUpForm: React.FC<SettleUpFormProps> = ({
 
     const rawParsed = parseFloat(amount);
     if (isNaN(rawParsed) || !isValidAmount(rawParsed)) {
-      alert(`Please enter a valid settlement amount between ₹${MIN_AMOUNT} and ₹${MAX_AMOUNT.toLocaleString('en-IN')}`);
+      showToast('danger', 'Invalid Amount', `Please enter a valid settlement amount between ₹${MIN_AMOUNT} and ₹${MAX_AMOUNT.toLocaleString('en-IN')}`);
       reset();
       return;
     }
     const parsed = roundMoney(rawParsed);
     const sanitizedDate = sanitizeDateString(date) || getTodayString();
     if (!isValidDate(sanitizedDate)) {
-      alert(`Please enter a valid date between ${MIN_DATE_STRING} and ${getMaxDateString()}`);
+      showToast('danger', 'Invalid Date', `Please enter a valid date between ${MIN_DATE_STRING} and ${getMaxDateString()}`);
       reset();
       return;
     }

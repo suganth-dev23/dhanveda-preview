@@ -22,11 +22,15 @@ import { IconRenderer } from '../common/IconRenderer';
 import { EmptyState } from '../common/EmptyState';
 import { RecurringPaymentModal } from './RecurringPaymentModal';
 import { MarkPaidModal } from './MarkPaidModal';
+import { ConfirmDialog } from '../common/ConfirmDialog';
+import { useToast } from '../../context/ToastContext';
 import { CashflowCalendarHeatmap } from '../dashboard/CashflowCalendarHeatmap';
 
 type FilterTab = 'all' | 'active' | 'paused';
 
 export const RecurringPaymentsView: React.FC = () => {
+ const { showToast } = useToast();
+ const [paymentToDelete, setPaymentToDelete] = useState<RecurringPayment | null>(null);
  const {
  recurringPayments,
  recurringPaymentLogs,
@@ -124,13 +128,7 @@ export const RecurringPaymentsView: React.FC = () => {
  };
 
  const handleDelete = (payment: RecurringPayment) => {
- if (
- window.confirm(
- `Are you sure you want to delete "${payment.name}"? All associated payment history for this commitment will also be removed.`
- )
- ) {
- deleteRecurringPayment(payment.id);
- }
+ setPaymentToDelete(payment);
  };
 
  const toggleHistory = (id: string) => {
@@ -709,6 +707,22 @@ export const RecurringPaymentsView: React.FC = () => {
 			);
 		}}
  />
- </div>
+ 
+      <ConfirmDialog
+        isOpen={Boolean(paymentToDelete)}
+        title="Delete Recurring Bill"
+        message={paymentToDelete ? `Are you sure you want to delete "${paymentToDelete.name}"? All associated payment history for this commitment will also be removed.` : ''}
+        confirmLabel="Delete"
+        variant="danger"
+        onConfirm={() => {
+          if (paymentToDelete) {
+            deleteRecurringPayment(paymentToDelete.id);
+            showToast('info', 'Bill Deleted', `Recurring commitment "${paymentToDelete.name}" was removed.`);
+            setPaymentToDelete(null);
+          }
+        }}
+        onCancel={() => setPaymentToDelete(null)}
+      />
+</div>
  );
 };

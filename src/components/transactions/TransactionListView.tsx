@@ -18,6 +18,7 @@ import { useWindowVirtualizer } from '../../hooks/useWindowVirtualizer';
 import { Button, Card, Money, Stat } from '../ui';
 import { TransactionTableRow, TransactionCardRow } from './TransactionRow';
 import { useToast } from '../../context/ToastContext';
+import { ConfirmDialog } from '../common/ConfirmDialog';
 
 interface TransactionListViewProps {
   onOpenAddModal: () => void;
@@ -212,50 +213,69 @@ export const TransactionListView: React.FC<TransactionListViewProps> = React.mem
 
   // Highlight newly added transaction
   const [highlightedTxId, setHighlightedTxId] = useState<string | null>(null);
+  const highlightTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [deletingTxIds, setDeletingTxIds] = useState<Set<string>>(new Set());
   const [selectedTxIds, setSelectedTxIds] = useState<Set<string>>(new Set());
+  const [confirmDialog, setConfirmDialog] = useState<{
+    isOpen: boolean;
+    title: string;
+    message: string;
+    onConfirm: () => void;
+  } | null>(null);
 
   const handleDeleteTransaction = useCallback((txId: string, desc: string) => {
     const txToDelete = transactions.find(t => t.id === txId);
     if (!txToDelete) return;
-    if (window.confirm(`Delete transaction "${desc}"?`)) {
-      setDeletingTxIds(prev => new Set(prev).add(txId));
-      const snapshot = captureDeleteSnapshot(txId);
-      deleteTransaction(txId);
-      setDeletingTxIds(prev => {
-        const next = new Set(prev);
-        next.delete(txId);
-        return next;
-      });
-      setSelectedTxIds(prev => {
-        if (!prev.has(txId)) return prev;
-        const next = new Set(prev);
-        next.delete(txId);
-        return next;
-      });
-      showToast('info', 'Transaction Removed', desc, 5000, {
-        label: 'Undo',
-        onClick: () => {
-          if (snapshot) {
-            restoreTransactions([snapshot]);
-          }
-        },
-      });
-    }
-  }, [transactions, deleteTransaction, captureDeleteSnapshot, restoreTransactions, showToast]);
+    setConfirmDialog({
+      isOpen: true,
+      title: 'Delete Transaction',
+      message: `Are you sure you want to delete transaction "${desc}"?`,
+      onConfirm: () => {
+        setDeletingTxIds(prev => new Set(prev).add(txId));
+        const snapshot = captureDeleteSnapshot(txId);
+        deleteTransaction(txId);
+        setDeletingTxIds(prev => {
+          const next = new Set(prev);
+          next.delete(txId);
+          return next;
+        });
+        setSelectedTxIds(prev => {
+          if (!prev.has(txId)) return prev;
+          const next = new Set(prev);
+          next.delete(txId);
+          return next;
+        });
+        showToast('info', 'Transaction Removed', desc, 5000, {
+          label: 'Undo',
+          onClick: () => {
+            if (snapshot) {
+              restoreTransactions([snapshot]);
+            }
+          },
+        });
+      },
+    });
+  }, [transactions, captureDeleteSnapshot, deleteTransaction, restoreTransactions, showToast, setSelectedTxIds]);
 
   useEffect(() => {
     if (!subscribeFinanceEvent) return;
     const unsubscribe = subscribeFinanceEvent((event) => {
       if (event.type === 'transaction_added' && event.tx?.id) {
         setHighlightedTxId(event.tx.id);
-        const timer = setTimeout(() => {
+        if (highlightTimerRef.current) clearTimeout(highlightTimerRef.current);
+        highlightTimerRef.current = setTimeout(() => {
           setHighlightedTxId(null);
+          highlightTimerRef.current = null;
         }, 3000);
-        return () => clearTimeout(timer);
       }
     });
-    return unsubscribe;
+    return () => {
+      unsubscribe?.();
+      if (highlightTimerRef.current) {
+        clearTimeout(highlightTimerRef.current);
+        highlightTimerRef.current = null;
+      }
+    };
   }, [subscribeFinanceEvent]);
 
   // Filters & Search with deferred value for high responsiveness
@@ -441,46 +461,50 @@ export const TransactionListView: React.FC<TransactionListViewProps> = React.mem
   }, [onEditTransaction]);
 
   const handleBulkDelete = useCallback(() => {
-    // Only target selected transactions that match current filter/view
     const visibleIds = new Set(filteredTransactions.map(t => t.id));
     const targetTxs = transactions.filter(t => selectedTxIds.has(t.id) && visibleIds.has(t.id));
     if (targetTxs.length === 0) return;
     const targetIds = targetTxs.map(t => t.id);
 
-    if (window.confirm(`Are you sure you want to delete ${targetIds.length} transaction${targetIds.length > 1 ? 's' : ''}?`)) {
-      setDeletingTxIds(new Set(targetIds));
-      const snapshots = targetIds
-        .map(id => captureDeleteSnapshot(id))
-        .filter((s): s is NonNullable<typeof s> => s !== null);
+    setConfirmDialog({
+      isOpen: true,
+      title: 'Delete Transactions',
+      message: `Are you sure you want to delete ${targetIds.length} transaction${targetIds.length > 1 ? 's' : ''}?`,
+      onConfirm: () => {
+        setDeletingTxIds(new Set(targetIds));
+        const snapshots = targetIds
+          .map(id => captureDeleteSnapshot(id))
+          .filter((s): s is NonNullable<typeof s> => s !== null);
 
-      deleteMultipleTransactions(targetIds);
-      setDeletingTxIds(new Set());
-      setSelectedTxIds(prev => {
-        const next = new Set(prev);
-        targetIds.forEach(id => next.delete(id));
-        return next;
-      });
+        deleteMultipleTransactions(targetIds);
+        setDeletingTxIds(new Set());
+        setSelectedTxIds(prev => {
+          const next = new Set(prev);
+          targetIds.forEach(id => next.delete(id));
+          return next;
+        });
 
-      showToast(
-        'info',
-        'Transactions Removed',
-        `${targetIds.length} transaction${targetIds.length > 1 ? 's' : ''} deleted`,
-        5000,
-        {
-          label: 'Undo',
-          onClick: () => {
-            if (snapshots.length > 0) {
-              restoreTransactions(snapshots);
-            }
-          },
-        }
-      );
-    }
+        showToast(
+          'info',
+          'Transactions Removed',
+          `${targetIds.length} transaction${targetIds.length > 1 ? 's' : ''} deleted`,
+          5000,
+          {
+            label: 'Undo',
+            onClick: () => {
+              if (snapshots.length > 0) {
+                restoreTransactions(snapshots);
+              }
+            },
+          }
+        );
+      },
+    });
   }, [filteredTransactions, transactions, selectedTxIds, captureDeleteSnapshot, deleteMultipleTransactions, restoreTransactions, showToast, setSelectedTxIds]);
 
   const exportToCSV = useCallback(() => {
     if (filteredTransactions.length === 0) {
-      alert('No transactions to export.');
+      showToast('info', 'Export Transactions', 'No transactions found to export.');
       return;
     }
     const headers = ['Date', 'Type', 'Amount (INR)', 'Description', 'Person', 'Category', 'Payment Method', 'Reference ID', 'Source'];
@@ -507,7 +531,7 @@ export const TransactionListView: React.FC<TransactionListViewProps> = React.mem
     link.click();
     document.body.removeChild(link);
     URL.revokeObjectURL(url);
-  }, [filteredTransactions]);
+  }, [filteredTransactions, showToast]);
 
   // Grouping structure
   const groupedTransactions = useMemo(() => {
@@ -995,7 +1019,20 @@ export const TransactionListView: React.FC<TransactionListViewProps> = React.mem
           })}
         </div>
       )}
-    </div>
+    
+      <ConfirmDialog
+        isOpen={Boolean(confirmDialog?.isOpen)}
+        title={confirmDialog?.title || 'Confirm Action'}
+        message={confirmDialog?.message || ''}
+        confirmLabel="Delete"
+        variant="danger"
+        onConfirm={() => {
+          if (confirmDialog?.onConfirm) confirmDialog.onConfirm();
+          setConfirmDialog(null);
+        }}
+        onCancel={() => setConfirmDialog(null)}
+      />
+</div>
   );
 });
 TransactionListView.displayName = 'TransactionListView';
