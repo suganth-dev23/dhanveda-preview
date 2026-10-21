@@ -133,6 +133,17 @@ export function getDB(): Promise<IDBPDatabase<DhanVedaDBSchema>> {
         dbPromise = null;
         cachedDB = null;
       },
+      blocked(currentVersion, blockedVersion) {
+        console.warn(`[DB] IndexedDB upgrade blocked. Current: ${currentVersion}, Target: ${blockedVersion}`);
+      },
+      blocking(_currentVersion, blockedVersion) {
+        console.warn(`[DB] IndexedDB blocking new version (${blockedVersion}). Closing active connection.`);
+        if (cachedDB) {
+          cachedDB.close();
+          cachedDB = null;
+        }
+        dbPromise = null;
+      },
       upgrade(db, oldVersion) {
         // Transactions store
         if (!db.objectStoreNames.contains('transactions')) {
@@ -224,6 +235,15 @@ export function getDB(): Promise<IDBPDatabase<DhanVedaDBSchema>> {
     })
       .then(db => {
         cachedDB = db;
+        db.addEventListener('versionchange', () => {
+          console.warn('[DB] Database version change detected in another tab. Closing connection.');
+          db.close();
+          cachedDB = null;
+          dbPromise = null;
+          if (typeof window !== 'undefined') {
+            window.dispatchEvent(new CustomEvent('dhanveda:crossTabStale'));
+          }
+        });
         return db;
       })
       .catch(err => {
@@ -634,6 +654,10 @@ export async function saveAllToStore<T extends { id: string }>(
 function hasItemChanged(a: any, b: any): boolean {
   if (a === b) return false;
   if (!a || !b || typeof a !== 'object' || typeof b !== 'object') return true;
+  // O(1) early comparison by updatedAt timestamp if present (O2)
+  if (typeof a.updatedAt === 'string' && typeof b.updatedAt === 'string') {
+    if (a.updatedAt !== b.updatedAt) return true;
+  }
   const keysA = Object.keys(a);
   const keysB = Object.keys(b);
   if (keysA.length !== keysB.length) return true;

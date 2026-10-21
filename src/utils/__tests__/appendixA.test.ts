@@ -77,6 +77,8 @@ describe('Appendix A — Pure-function expectations', () => {
       frequency: 'monthly',
       startDate: '2020-01-05',
       dayOfMonth: 5,
+      isActive: true,
+      autoLogTransaction: true,
       createdAt: '2026-10-01T00:00:00Z',
       updatedAt: '2026-10-01T00:00:00Z',
     };

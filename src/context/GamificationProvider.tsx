@@ -215,9 +215,10 @@ export const GamificationProvider: React.FC<{ children: React.ReactNode }> = ({ 
 
  ALL_BADGES.forEach(badgeDef => {
  const isAlreadyUnlocked = currentIds.includes(badgeDef.id);
+ if (isAlreadyUnlocked) return;
  const evalResult = badgeDef.evaluate(evaluationContext);
 
- if (evalResult.isUnlocked && !isAlreadyUnlocked) {
+ if (evalResult.isUnlocked) {
  const now = new Date().toISOString();
  updatedBadgeIds.push(badgeDef.id);
  updatedBadgeDates[badgeDef.id] = now;
@@ -358,8 +359,10 @@ export const GamificationProvider: React.FC<{ children: React.ReactNode }> = ({ 
  // Build full Badge list with live progress and unlock status
  const badges = useMemo<Badge[]>(() => {
  return ALL_BADGES.map(badgeDef => {
- const evalResult = badgeDef.evaluate(evaluationContext);
  const isUnlocked = unlockedBadgeIds.includes(badgeDef.id);
+ const evalResult = isUnlocked
+ ? { isUnlocked: true, progress: 100, currentCount: undefined, targetCount: undefined }
+ : badgeDef.evaluate(evaluationContext);
  return {
  id: badgeDef.id,
  name: badgeDef.name,

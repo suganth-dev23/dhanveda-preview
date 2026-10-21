@@ -29,20 +29,39 @@ function stringSimilarity(str1: string, str2: string): number {
 }
 
 /**
- * Checks staged transactions against existing transactions and flags duplicates
+ * Checks staged transactions against existing transactions and flags duplicates.
+ * Pre-indexes existing transactions into HashMaps (O(S + E)) for high performance.
  */
 export function flagDuplicates(
   stagedList: Omit<StagedTransaction, 'isDuplicate' | 'duplicateReason'>[],
   existingList: Transaction[]
 ): StagedTransaction[] {
+  // Pre-index existing transactions by referenceId and date|type|paise
+  const existingByRefId = new Map<string, Transaction>();
+  const existingByDateAmountType = new Map<string, Transaction[]>();
+
+  for (let i = 0; i < existingList.length; i++) {
+    const e = existingList[i];
+    if (e.referenceId) {
+      existingByRefId.set(e.referenceId.trim().toLowerCase(), e);
+    }
+    const cents = Math.round((Number.isFinite(e.amount) ? e.amount : 0) * 100);
+    const key = `${e.date}|${e.type}|${cents}`;
+    const list = existingByDateAmountType.get(key);
+    if (list) {
+      list.push(e);
+    } else {
+      existingByDateAmountType.set(key, [e]);
+    }
+  }
+
   const seenInBatch = new Map<string, number>();
 
   return stagedList.map((staged, index) => {
-    // 1. Check referenceId exact match against existing
+    // 1. Check referenceId exact match against pre-indexed Map (O(1))
     if (staged.referenceId) {
-      const refMatch = existingList.find(
-        e => e.referenceId && e.referenceId.toLowerCase() === staged.referenceId?.toLowerCase()
-      );
+      const refKey = staged.referenceId.trim().toLowerCase();
+      const refMatch = existingByRefId.get(refKey);
       if (refMatch) {
         return {
           ...staged,
@@ -53,13 +72,10 @@ export function flagDuplicates(
       }
     }
 
-    // 2. Check Date + Amount + Type exact match against existing
-    const matchingCandidates = existingList.filter(e => {
-      const dateMatch = e.date === staged.date;
-      const amountMatch = Math.abs(e.amount - staged.amount) < 0.01;
-      const typeMatch = e.type === staged.type;
-      return dateMatch && amountMatch && typeMatch;
-    });
+    // 2. Check Date + Amount + Type exact match against pre-indexed Map (O(1))
+    const stagedCents = Math.round((Number.isFinite(staged.amount) ? staged.amount : 0) * 100);
+    const candidateKey = `${staged.date}|${staged.type}|${stagedCents}`;
+    const matchingCandidates = existingByDateAmountType.get(candidateKey) || [];
 
     for (const match of matchingCandidates) {
       const desc1 = (match.description || '').trim().toLowerCase();

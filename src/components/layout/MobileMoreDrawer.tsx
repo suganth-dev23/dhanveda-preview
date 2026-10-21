@@ -16,7 +16,7 @@ import {
   FileSpreadsheet,
   Search,
 } from 'lucide-react';
-import { useFinance, AppView } from '../../context/FinanceContext';
+import { useFinanceUi, AppView } from '../../context/FinanceContext';
 import { useOverlayTransition } from '../../hooks/useOverlayTransition';
 import { useFocusTrap } from '../../hooks/useFocusTrap';
 
@@ -64,7 +64,7 @@ const DRAWER_SECTIONS: DrawerSection[] = [
 ];
 
 export const MobileMoreDrawer: React.FC<MobileMoreDrawerProps> = ({ isOpen, onClose }) => {
-  const { currentView, setCurrentView, darkMode, setDarkMode } = useFinance();
+  const { currentView, setCurrentView, darkMode, setDarkMode } = useFinanceUi();
   const [searchQuery, setSearchQuery] = useState('');
 
   const { shouldRender, isAnimatingIn } = useOverlayTransition({

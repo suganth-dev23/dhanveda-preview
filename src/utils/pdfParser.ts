@@ -1,18 +1,10 @@
-import * as pdfjsLib from 'pdfjs-dist';
 import { StagedTransaction } from '../types/finance';
 import type { WorkerPDFResponse } from '../workers/pdfParser.worker';
 import { extractTransactionsFromPDFLines } from './pdfLineExtractor';
 import { getCustomAutoRules } from './categoryMatcher';
 
 // Configure pdfjs worker in main thread as well for seamless fallback
-try {
-  pdfjsLib.GlobalWorkerOptions.workerSrc = new URL(
-    'pdfjs-dist/build/pdf.worker.min.mjs',
-    import.meta.url
-  ).toString();
-} catch {
-  // worker option fallback
-}
+
 
 export interface PDFParseProgress {
   page: number;
@@ -37,6 +29,14 @@ export async function parsePDFInThread(
   const errors: string[] = [];
 
   try {
+    const pdfjsLib = await import('pdfjs-dist');
+    try {
+      pdfjsLib.GlobalWorkerOptions.workerSrc = new URL(
+        'pdfjs-dist/build/pdf.worker.min.mjs',
+        import.meta.url
+      ).toString();
+    } catch {}
+
     const pdf = await pdfjsLib.getDocument({
       data: arrayBuffer,
       useWorkerFetch: false,

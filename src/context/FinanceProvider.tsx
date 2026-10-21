@@ -1,3 +1,4 @@
+import { generateId } from '../utils/id';
 import React, { useState, useEffect, useLayoutEffect, useMemo, useCallback, useRef } from 'react';
 import {
  Transaction,
@@ -18,16 +19,7 @@ import {
  OwedDirection,
  SyncableStoreName,
 } from '../types/finance';
-import {
- DEFAULT_CATEGORIES,
- INITIAL_TRANSACTIONS,
- INITIAL_BUDGETS,
- INITIAL_EMERGENCY_FUND,
- INITIAL_INVESTMENTS,
- INITIAL_DREAMS,
- INITIAL_RECURRING_PAYMENTS,
- INITIAL_RECURRING_PAYMENT_LOGS,
-} from '../utils/sampleData';
+import { DEFAULT_CATEGORIES } from '../utils/sampleData';
 import { getCurrentMonthYear, getTodayString, todayLocal, getMonthKey } from '../utils/date';
 import {
   normalizeTransaction,
@@ -84,14 +76,22 @@ const SESSION_TAB_ID = typeof crypto !== 'undefined' && typeof crypto.randomUUID
   ? crypto.randomUUID()
   : `tab-${Math.random().toString(36).substring(2)}-${Date.now()}`;
 
-function broadcastDataChange(store: string) {
-  if (typeof BroadcastChannel !== 'undefined') {
+let sharedBroadcastChannel: BroadcastChannel | null = null;
+function getSharedBroadcastChannel(): BroadcastChannel | null {
+  if (typeof BroadcastChannel === 'undefined') return null;
+  if (!sharedBroadcastChannel) {
     try {
-      const bc = new BroadcastChannel('dhanveda-data');
-      bc.postMessage({ type: 'data_changed', store, senderTabId: SESSION_TAB_ID, at: Date.now() });
-      bc.close();
+      sharedBroadcastChannel = new BroadcastChannel('dhanveda-data');
     } catch {}
   }
+  return sharedBroadcastChannel;
+}
+
+function broadcastDataChange(store: string) {
+  try {
+    const bc = getSharedBroadcastChannel();
+    bc?.postMessage({ type: 'data_changed', store, senderTabId: SESSION_TAB_ID, at: Date.now() });
+  } catch {}
 }
 
 const EMPTY_EMERGENCY_FUND: EmergencyFund = {
@@ -101,8 +101,44 @@ const EMPTY_EMERGENCY_FUND: EmergencyFund = {
  contributions: [],
 };
 
+const VALID_APP_VIEWS: AppView[] = [
+  'dashboard', 'transactions', 'budgets', 'recurring', 'categories',
+  'emergency', 'investments', 'dreams', 'people', 'ai', 'import', 'settings', 'badges'
+];
+
+function getInitialView(): AppView {
+  if (typeof window !== 'undefined' && window.location.hash) {
+    const raw = window.location.hash.replace(/^#\/?/, '').toLowerCase() as AppView;
+    if (VALID_APP_VIEWS.includes(raw)) return raw;
+  }
+  return 'dashboard';
+}
+
 export const FinanceProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
- const [currentView, setCurrentView] = useState<AppView>('dashboard');
+ const [currentView, setCurrentView] = useState<AppView>(getInitialView);
+  // Synchronize URL hash with currentView for browser navigation and deep linking (B19)
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    const currentHash = window.location.hash.replace(/^#\/?/, '').toLowerCase();
+    if (currentHash !== currentView) {
+      window.location.hash = '/' + currentView;
+    }
+
+    const onLocationChange = () => {
+      const newHash = window.location.hash.replace(/^#\/?/, '').toLowerCase() as AppView;
+      if (VALID_APP_VIEWS.includes(newHash)) {
+        setCurrentView(newHash);
+      }
+    };
+
+    window.addEventListener('hashchange', onLocationChange);
+    window.addEventListener('popstate', onLocationChange);
+    return () => {
+      window.removeEventListener('hashchange', onLocationChange);
+      window.removeEventListener('popstate', onLocationChange);
+    };
+  }, [currentView]);
+
  const [isInitialized, setIsInitialized] = useState(false);
  const [unreadableRecordCount, setUnreadableRecordCount] = useState<number>(0);
  const [isUnreadableBannerDismissed, setIsUnreadableBannerDismissed] = useState<boolean>(false);
@@ -189,7 +225,19 @@ export const FinanceProvider: React.FC<{ children: React.ReactNode }> = ({ child
   const dismissCrossTabStale = useCallback(() => setCrossTabStale(false), []);
 
   useEffect(() => {
-    if (typeof BroadcastChannel === 'undefined') return;
+    const onStale = () => setCrossTabStale(true);
+    if (typeof window !== 'undefined') {
+      window.addEventListener('dhanveda:crossTabStale', onStale);
+    }
+
+    if (typeof BroadcastChannel === 'undefined') {
+      return () => {
+        if (typeof window !== 'undefined') {
+          window.removeEventListener('dhanveda:crossTabStale', onStale);
+        }
+      };
+    }
+
     let bc: BroadcastChannel | null = null;
     try {
       bc = new BroadcastChannel('dhanveda-data');
@@ -202,8 +250,12 @@ export const FinanceProvider: React.FC<{ children: React.ReactNode }> = ({ child
         }
       };
     } catch {}
+
     return () => {
       try { bc?.close(); } catch {}
+      if (typeof window !== 'undefined') {
+        window.removeEventListener('dhanveda:crossTabStale', onStale);
+      }
     };
   }, []);
 
@@ -846,30 +898,41 @@ export const FinanceProvider: React.FC<{ children: React.ReactNode }> = ({ child
     };
   }, [flushPendingSync]);
 
- useEffect(() => {
- // Apply temporary .theme-anim class for smooth transition only during toggle (E.4)
- document.documentElement.classList.add('theme-anim');
- const timer = setTimeout(() => {
- document.documentElement.classList.remove('theme-anim');
- }, 350);
+  // Split dark mode DOM transition from preferences (B23)
+  useEffect(() => {
+    document.documentElement.classList.add('theme-anim');
+    const timer = setTimeout(() => {
+      document.documentElement.classList.remove('theme-anim');
+    }, 350);
 
- if (darkMode) {
- document.documentElement.classList.add('dark');
- localStorage.setItem('dhanveda_dark_mode', 'true');
- } else {
- document.documentElement.classList.remove('dark');
- localStorage.setItem('dhanveda_dark_mode', 'false');
- }
- if (isInitialized) {
- saveSingleRecord('userPreferences', {
- id: 'general',
- darkMode,
- notRecurringTxIds: Array.from(notRecurringTxIds),
- updatedAt: new Date().toISOString(),
- }).catch(e => console.error('Error saving user preferences:', e));
- }
- return () => clearTimeout(timer);
- }, [darkMode, notRecurringTxIds, isInitialized]);
+    if (darkMode) {
+      document.documentElement.classList.add('dark');
+      localStorage.setItem('dhanveda_dark_mode', 'true');
+    } else {
+      document.documentElement.classList.remove('dark');
+      localStorage.setItem('dhanveda_dark_mode', 'false');
+    }
+
+    if (isInitialized) {
+      saveSingleRecord('userPreferences', {
+        id: 'general',
+        darkMode,
+        notRecurringTxIds: Array.from(notRecurringTxIdsRef.current),
+        updatedAt: new Date().toISOString(),
+      }).catch(e => console.error('Error saving dark mode preference:', e));
+    }
+    return () => clearTimeout(timer);
+  }, [darkMode, isInitialized]);
+
+  useEffect(() => {
+    if (!isInitialized) return;
+    saveSingleRecord('userPreferences', {
+      id: 'general',
+      darkMode,
+      notRecurringTxIds: Array.from(notRecurringTxIds),
+      updatedAt: new Date().toISOString(),
+    }).catch(e => console.error('Error saving notRecurring preferences:', e));
+  }, [notRecurringTxIds, isInitialized, darkMode]);
 
  const toggleNotRecurring = (txId: string | string[]) => {
  setNotRecurringTxIds(prev => {
@@ -893,7 +956,7 @@ export const FinanceProvider: React.FC<{ children: React.ReactNode }> = ({ child
  const now = new Date().toISOString();
  const newTx: Transaction = {
  ...txData,
- id: `tx-${Date.now()}-${Math.random().toString(36).substring(2, 7)}`,
+ id: generateId('tx'),
  createdAt: now,
  updatedAt: now,
  };
@@ -1178,7 +1241,7 @@ export const FinanceProvider: React.FC<{ children: React.ReactNode }> = ({ child
  const now = new Date().toISOString();
  const newContact: Contact = {
  ...contactData,
- id: `contact-${Date.now()}-${Math.random().toString(36).substring(2, 6)}`,
+ id: generateId('contact'),
  createdAt: now,
  updatedAt: now,
  };
@@ -1297,7 +1360,7 @@ export const FinanceProvider: React.FC<{ children: React.ReactNode }> = ({ child
  }
 
  const newSettlement: SettlementRecord = {
- id: `set-${Date.now()}-${Math.random().toString(36).substring(2, 6)}`,
+ id: generateId('set'),
  contactId,
  amount,
  date: date || todayLocal(),
@@ -1430,7 +1493,7 @@ export const FinanceProvider: React.FC<{ children: React.ReactNode }> = ({ child
  // 2. If it is attached to a contact, record SettlementRecord
  if (targetEntry.contactId) {
  const newSettlement: SettlementRecord = {
- id: `set-${Date.now()}-${Math.random().toString(36).substring(2, 6)}`,
+ id: generateId('set'),
  contactId: targetEntry.contactId,
  date: todayLocal(),
  amount: targetEntry.amount,
@@ -1558,7 +1621,7 @@ export const FinanceProvider: React.FC<{ children: React.ReactNode }> = ({ child
  return updatedRecord;
  } else {
  const newSettlement: SettlementRecord = {
- id: `set-${Date.now()}-${Math.random().toString(36).substring(2, 6)}`,
+ id: generateId('set'),
  contactId: targetEntry.contactId,
  date: options.date || todayLocal(),
  amount: finalSettledAmount,
@@ -1626,7 +1689,7 @@ export const FinanceProvider: React.FC<{ children: React.ReactNode }> = ({ child
  const newCat: Category = {
  ...catData,
  name: trimmedName,
- id: `cat-${Date.now()}`,
+ id: generateId('cat'),
  isCustom: true,
  updatedAt: now,
  };
@@ -1762,7 +1825,7 @@ export const FinanceProvider: React.FC<{ children: React.ReactNode }> = ({ child
  next[existingIdx] = { ...next[existingIdx], monthlyLimit, updatedAt: now };
  return next;
  } else {
- return [...prev, { id: `b-${Date.now()}`, category, monthlyLimit, updatedAt: now }];
+ return [...prev, { id: generateId('b'), category, monthlyLimit, updatedAt: now }];
  }
  };
  budgetsRef.current = updater(budgetsRef.current);
@@ -1801,7 +1864,7 @@ export const FinanceProvider: React.FC<{ children: React.ReactNode }> = ({ child
  const now = new Date().toISOString();
  const today = date || todayLocal();
  const newContribution = {
- id: `em-${Date.now()}`,
+ id: generateId('em'),
  date: today,
  amount,
  type,
@@ -1848,14 +1911,14 @@ export const FinanceProvider: React.FC<{ children: React.ReactNode }> = ({ child
  const today = todayLocal();
  const newInv: Investment = {
  ...invData,
- id: `inv-${Date.now()}`,
+ id: generateId('inv'),
  startDate: invData.startDate || today,
  createdAt: invData.createdAt || now,
  lastUpdated: today,
  updatedAt: now,
  logs: [
  {
- id: `log-${Date.now()}`,
+ id: generateId('log'),
  date: today,
  investedDelta: invData.investedAmount,
  valueDelta: invData.currentValue,
@@ -1880,7 +1943,7 @@ export const FinanceProvider: React.FC<{ children: React.ReactNode }> = ({ child
  newLogs = [
  ...newLogs,
  {
- id: `log-${Date.now()}-${Math.random().toString(36).substring(2, 6)}`,
+ id: generateId('log'),
  date: today,
  investedDelta: invDelta,
  valueDelta: valDelta,
@@ -1918,7 +1981,7 @@ export const FinanceProvider: React.FC<{ children: React.ReactNode }> = ({ child
  const initialSaved = dreamData.initialSaved || 0;
  const today = todayLocal();
  const newDream: DreamGoal = {
- id: `dream-${Date.now()}`,
+ id: generateId('dream'),
  name: dreamData.name,
  targetAmount: dreamData.targetAmount,
  currentSaved: initialSaved,
@@ -1931,7 +1994,7 @@ export const FinanceProvider: React.FC<{ children: React.ReactNode }> = ({ child
  updatedAt: now,
  contributions: initialSaved > 0 ? [
  {
- id: `dc-${Date.now()}`,
+ id: generateId('dc'),
  date: today,
  amount: initialSaved,
  note: 'Initial contribution',
@@ -1964,7 +2027,7 @@ export const FinanceProvider: React.FC<{ children: React.ReactNode }> = ({ child
  const now = new Date().toISOString();
  const today = date || todayLocal();
  const newContribution = {
- id: `dc-${Date.now()}`,
+ id: generateId('dc'),
  date: today,
  amount,
  note: note || 'Goal Contribution',
@@ -2014,7 +2077,7 @@ export const FinanceProvider: React.FC<{ children: React.ReactNode }> = ({ child
  const now = new Date().toISOString();
  const newPayment: RecurringPayment = {
  ...paymentData,
- id: `rec-${Date.now()}-${Math.random().toString(36).substring(2, 7)}`,
+ id: generateId('rec'),
  createdAt: now,
  updatedAt: now,
  };
@@ -2117,7 +2180,7 @@ export const FinanceProvider: React.FC<{ children: React.ReactNode }> = ({ child
    setRecurringPaymentLogs(prev => prev.map(l => (l.id === existingLog.id ? updatedLog : l)));
   } else {
    const newLog: RecurringPaymentLog = {
-    id: `reclog-${Date.now()}-${Math.random().toString(36).substring(2, 7)}`,
+    id: generateId('reclog'),
     recurringPaymentId,
     dueDate,
     paidDate: resolvedPaidDate,
@@ -2156,7 +2219,7 @@ export const FinanceProvider: React.FC<{ children: React.ReactNode }> = ({ child
  const now = new Date().toISOString();
  const newReport: AIHealthReport = {
  ...reportData,
- id: `rep-${Date.now()}`,
+ id: generateId('rep'),
  createdAt: now,
  updatedAt: now,
  };
@@ -2169,8 +2232,18 @@ export const FinanceProvider: React.FC<{ children: React.ReactNode }> = ({ child
  };
 
  // Reset & Backup
-  const resetToDemoData = () => {
+  const resetToDemoData = async () => {
     emitFinanceEvent({ type: 'bulk_data_loaded' });
+    const {
+      INITIAL_TRANSACTIONS,
+      INITIAL_BUDGETS,
+      INITIAL_EMERGENCY_FUND,
+      INITIAL_INVESTMENTS,
+      INITIAL_DREAMS,
+      INITIAL_RECURRING_PAYMENTS,
+      INITIAL_RECURRING_PAYMENT_LOGS,
+    } = await import('../utils/sampleData');
+
     const rebased = rebaseDemoData({
       transactions: INITIAL_TRANSACTIONS,
       emergencyFund: INITIAL_EMERGENCY_FUND,
@@ -2232,7 +2305,7 @@ export const FinanceProvider: React.FC<{ children: React.ReactNode }> = ({ child
 
   const clearAllData = async () => {
     transactionsRef.current = [];
-    categoriesRef.current = [];
+    categoriesRef.current = DEFAULT_CATEGORIES;
     budgetsRef.current = [];
     investmentsRef.current = [];
     dreamsRef.current = [];
@@ -2242,7 +2315,7 @@ export const FinanceProvider: React.FC<{ children: React.ReactNode }> = ({ child
     recurringPaymentLogsRef.current = [];
 
     prevTransactionsRef.current = [];
-    prevCategoriesRef.current = [];
+    prevCategoriesRef.current = DEFAULT_CATEGORIES;
     prevBudgetsRef.current = [];
     prevInvestmentsRef.current = [];
     prevDreamsRef.current = [];
@@ -2253,6 +2326,7 @@ export const FinanceProvider: React.FC<{ children: React.ReactNode }> = ({ child
     prevAiReportsRef.current = [];
 
     setTransactions([]);
+    setCategories(DEFAULT_CATEGORIES);
     setBudgets([]);
     setInvestments([]);
     setDreams([]);
@@ -2268,6 +2342,7 @@ export const FinanceProvider: React.FC<{ children: React.ReactNode }> = ({ child
       window.dispatchEvent(new CustomEvent('dhanveda-checklist-reset'));
     } catch {}
     await clearAllStores();
+    await saveAllToStore('categories', DEFAULT_CATEGORIES);
   };
 
   const exportBackupJSON = (): string => {
@@ -2297,6 +2372,7 @@ export const FinanceProvider: React.FC<{ children: React.ReactNode }> = ({ child
     jsonStr: string,
     options?: {
       onToast?: (variant: 'success' | 'danger' | 'warning' | 'info', title: string, message?: string, duration?: number, action?: { label: string; onClick: () => void }) => void;
+      skipConfirm?: boolean;
     }
   ): boolean => {
     const notify = (variant: 'success' | 'danger' | 'warning' | 'info', title: string, message?: string, duration?: number, action?: { label: string; onClick: () => void }) => {
@@ -2480,10 +2556,12 @@ export const FinanceProvider: React.FC<{ children: React.ReactNode }> = ({ child
       };
 
       const confirmMsg = `Replace your current data (${getCurrentCountsSummary()}) with this backup (${getBackupCountsSummary()})? This cannot be undone.`;
-      const confirmed = typeof window !== 'undefined' ? window.confirm(confirmMsg) : true;
-      if (!confirmed) {
-        notify('info', 'Restore Cancelled', 'No changes were made to your data.');
-        return false;
+      if (!options?.skipConfirm) {
+        const confirmed = typeof window !== 'undefined' ? window.confirm(confirmMsg) : true;
+        if (!confirmed) {
+          notify('info', 'Restore Cancelled', 'No changes were made to your data.');
+          return false;
+        }
       }
 
       // Automatically download a safety backup of the current data first (Blob download, no storage)
@@ -2697,8 +2775,10 @@ export const FinanceProvider: React.FC<{ children: React.ReactNode }> = ({ child
  }, [dreams]);
 
   // Derived Splits & Owed Metrics (Single-pass Map indexed: O(T + S + C) instead of O(C * (T + S)))
-  const contactBalances = useMemo<ContactBalance[]>(() => {
-    // 1. Single pass over transactions to accumulate split balances per contact
+   const { contactBalances, totalOwedToMe, totalIOwe } = useMemo(() => {
+    // 1. Single pass over transactions to accumulate split balances per contact AND track unnamed splits (O9)
+    let unnamedOwed = 0;
+    let unnamedIOwe = 0;
     const splitsByContact = new Map<string, { owedToMe: number; iOweThem: number; latestDate: string }>();
 
     for (let i = 0; i < transactions.length; i++) {
@@ -2706,17 +2786,28 @@ export const FinanceProvider: React.FC<{ children: React.ReactNode }> = ({ child
       if (!t.splitWith || !Array.isArray(t.splitWith)) continue;
       for (let j = 0; j < t.splitWith.length; j++) {
         const entry = t.splitWith[j];
-        if (!entry.contactId) continue;
+        const fullAmount = entry.amount;
+        const settledAmt = entry.settled
+          ? (entry.settledAmount !== undefined ? entry.settledAmount : fullAmount)
+          : (entry.settledAmount || 0);
+        const remaining = Math.max(0, fullAmount - settledAmt);
+
+        if (!entry.contactId) {
+          if (remaining > 0) {
+            if (entry.direction === 'they_owe_me') {
+              unnamedOwed += remaining;
+            } else {
+              unnamedIOwe += remaining;
+            }
+          }
+          continue;
+        }
+
         let data = splitsByContact.get(entry.contactId);
         if (!data) {
           data = { owedToMe: 0, iOweThem: 0, latestDate: '' };
           splitsByContact.set(entry.contactId, data);
         }
-        const fullAmount = entry.amount;
-        const settledAmt = entry.settled
-          ? fullAmount
-          : (entry.settledAmount || 0);
-        const remaining = Math.max(0, fullAmount - settledAmt);
 
         if (remaining > 0) {
           if (entry.direction === 'they_owe_me') {
@@ -2744,8 +2835,12 @@ export const FinanceProvider: React.FC<{ children: React.ReactNode }> = ({ child
       }
     }
 
-    // 3. Map contacts in O(contacts)
-    return contacts.map(contact => {
+    // 3. Loop over contacts in O(contacts) and sum named owed/iOwe
+    let namedOwed = 0;
+    let namedIOwe = 0;
+    const balances: ContactBalance[] = [];
+    for (let cIdx = 0; cIdx < contacts.length; cIdx++) {
+      const contact = contacts[cIdx];
       const splitData = splitsByContact.get(contact.id);
       let owedToMe = splitData ? splitData.owedToMe : 0;
       let iOweThem = splitData ? splitData.iOweThem : 0;
@@ -2805,6 +2900,7 @@ export const FinanceProvider: React.FC<{ children: React.ReactNode }> = ({ child
               }
             }
           }
+
           if (s.date > lastUpdated) {
             lastUpdated = s.date;
           }
@@ -2812,61 +2908,22 @@ export const FinanceProvider: React.FC<{ children: React.ReactNode }> = ({ child
       }
 
       const netAmount = owedToMe - iOweThem;
-      return {
+      if (netAmount > 0) namedOwed += netAmount;
+      else if (netAmount < 0) namedIOwe += Math.abs(netAmount);
+
+      balances.push({
         contactId: contact.id,
         netAmount: Number(netAmount.toFixed(2)),
         lastUpdated,
-      };
-    });
+      });
+    }
+
+    return {
+      contactBalances: balances,
+      totalOwedToMe: Number((namedOwed + unnamedOwed).toFixed(2)),
+      totalIOwe: Number((namedIOwe + unnamedIOwe).toFixed(2)),
+    };
   }, [contacts, transactions, settlements]);
-
- const totalOwedToMe = useMemo(() => {
- const namedOwed = contactBalances
- .filter(b => b.netAmount > 0)
- .reduce((acc, b) => acc + b.netAmount, 0);
-
- let unnamedOwed = 0;
- transactions.forEach(t => {
- if (t.splitWith && Array.isArray(t.splitWith)) {
- t.splitWith.forEach(entry => {
- if (!entry.contactId && entry.direction === 'they_owe_me') {
- const fullAmount = entry.amount;
- const settledAmt = entry.settled
- ? (entry.settledAmount !== undefined ? entry.settledAmount : fullAmount)
- : (entry.settledAmount || 0);
- const remaining = Math.max(0, fullAmount - settledAmt);
- unnamedOwed += remaining;
- }
- });
- }
- });
-
- return Number((namedOwed + unnamedOwed).toFixed(2));
- }, [contactBalances, transactions]);
-
- const totalIOwe = useMemo(() => {
- const namedIOwe = contactBalances
- .filter(b => b.netAmount < 0)
- .reduce((acc, b) => acc + Math.abs(b.netAmount), 0);
-
- let unnamedIOwe = 0;
- transactions.forEach(t => {
- if (t.splitWith && Array.isArray(t.splitWith)) {
- t.splitWith.forEach(entry => {
- if (!entry.contactId && entry.direction === 'i_owe_them') {
- const fullAmount = entry.amount;
- const settledAmt = entry.settled
- ? (entry.settledAmount !== undefined ? entry.settledAmount : fullAmount)
- : (entry.settledAmount || 0);
- const remaining = Math.max(0, fullAmount - settledAmt);
- unnamedIOwe += remaining;
- }
- });
- }
- });
-
- return Number((namedIOwe + unnamedIOwe).toFixed(2));
- }, [contactBalances, transactions]);
 
  const netSharedBalance = useMemo(() => {
  return Number((totalOwedToMe - totalIOwe).toFixed(2));

@@ -183,6 +183,7 @@ export interface FinanceActionsContextType {
     jsonStr: string,
     options?: {
       onToast?: (variant: 'success' | 'danger' | 'warning' | 'info', title: string, message?: string, duration?: number, action?: { label: string; onClick: () => void }) => void;
+      skipConfirm?: boolean;
     }
   ) => boolean;
 }
@@ -277,3 +278,10 @@ export const useFinance = () => {
   }
   return context;
 };
+
+export function useFinanceSelector<Selected>(
+  selector: (context: FinanceContextType) => Selected
+): Selected {
+  const context = useFinance();
+  return selector(context);
+}

@@ -1,4 +1,10 @@
-import confetti from 'canvas-confetti';
+let confettiPromise: Promise<any> | null = null;
+function getConfetti(): Promise<any> {
+  if (!confettiPromise) {
+    confettiPromise = import('canvas-confetti').then(m => m.default || m);
+  }
+  return confettiPromise;
+}
 import { getPrefersReducedMotion } from '../hooks/useReducedMotion';
 
 const GOLD_PALETTE = ['#F5B742', '#F59E0B', '#FBBF24', '#D97706', '#FEF3C7', '#FFFFFF'];
@@ -78,7 +84,7 @@ export function burstConfetti(targetEl?: HTMLElement | null) {
   }
 
   try {
-    confetti({
+    getConfetti().then(confetti => { confetti({
       particleCount: 45,
       spread: 60,
       origin,
@@ -87,7 +93,7 @@ export function burstConfetti(targetEl?: HTMLElement | null) {
       gravity: 0.95,
       scalar: 1.0,
       disableForReducedMotion: true,
-    });
+    }); }).catch(() => {});
   } catch {
     // Graceful fallback
   }
@@ -107,7 +113,7 @@ export function goldShower() {
   }
 
   try {
-    confetti({
+    getConfetti().then(confetti => { confetti({
       particleCount: 50,
       spread: 65,
       origin: { y: 0.6 },
@@ -116,7 +122,7 @@ export function goldShower() {
       gravity: 0.95,
       scalar: 1.0,
       disableForReducedMotion: true,
-    });
+    }); }).catch(() => {});
   } catch {
     // Ignore
   }
@@ -136,7 +142,7 @@ export function dualSideCannons() {
   }
 
   try {
-    confetti({
+    getConfetti().then(confetti => { confetti({
       particleCount: 30,
       angle: 60,
       spread: 50,
@@ -145,8 +151,8 @@ export function dualSideCannons() {
       ticks: 85,
       gravity: 0.9,
       disableForReducedMotion: true,
-    });
-    confetti({
+    }); }).catch(() => {});
+    getConfetti().then(confetti => { confetti({
       particleCount: 30,
       angle: 120,
       spread: 50,
@@ -155,7 +161,7 @@ export function dualSideCannons() {
       ticks: 85,
       gravity: 0.9,
       disableForReducedMotion: true,
-    });
+    }); }).catch(() => {});
   } catch {
     // Ignore
   }
@@ -187,7 +193,7 @@ export function subtleSparkle(originOrEl?: { x: number; y: number } | HTMLElemen
   }
 
   try {
-    confetti({
+    getConfetti().then(confetti => { confetti({
       particleCount: 16,
       spread: 35,
       startVelocity: 14,
@@ -197,7 +203,7 @@ export function subtleSparkle(originOrEl?: { x: number; y: number } | HTMLElemen
       origin,
       colors: ['#F5B742', '#10B981', '#FEF3C7'],
       disableForReducedMotion: true,
-    });
+    }); }).catch(() => {});
   } catch {
     // Ignore
   }

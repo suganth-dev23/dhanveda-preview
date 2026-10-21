@@ -85,13 +85,22 @@ export function todayLocal(): string {
   return getTodayString();
 }
 
+let cachedMonthYearKey = '';
+let cachedMonthYearResult: { month: number; year: number; monthName: string; key: string } | null = null;
+
 export function getCurrentMonthYear(): { month: number; year: number; monthName: string; key: string } {
+  const dayKey = todayLocal();
+  if (cachedMonthYearResult && cachedMonthYearKey === dayKey) {
+    return cachedMonthYearResult;
+  }
   const now = new Date();
   const month = now.getMonth();
   const year = now.getFullYear();
   const monthName = now.toLocaleString('en-IN', { month: 'long' });
   const key = `${year}-${String(month + 1).padStart(2, '0')}`;
-  return { month, year, monthName, key };
+  cachedMonthYearKey = dayKey;
+  cachedMonthYearResult = { month, year, monthName, key };
+  return cachedMonthYearResult;
 }
 
 export function getPreviousMonthKey(): string {

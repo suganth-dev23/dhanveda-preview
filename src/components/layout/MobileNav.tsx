@@ -6,7 +6,7 @@ import {
   MoreHorizontal,
   Plus,
 } from 'lucide-react';
-import { useFinance } from '../../context/FinanceContext';
+import { useFinanceUi } from '../../context/FinanceContext';
 
 interface MobileNavProps {
   onOpenMore: () => void;
@@ -14,7 +14,7 @@ interface MobileNavProps {
 }
 
 export const MobileNav: React.FC<MobileNavProps> = ({ onOpenMore, onOpenAddTx }) => {
-  const { currentView, setCurrentView } = useFinance();
+  const { currentView, setCurrentView } = useFinanceUi();
 
   return (
     <nav
