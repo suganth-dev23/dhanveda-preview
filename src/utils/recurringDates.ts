@@ -6,6 +6,7 @@
  */
 
 import type { RecurringPayment, RecurringPaymentLog, RecurrenceFrequency } from '../types/finance';
+import { roundCurrency } from './currency';
 
 /**
  * Returns the maximum days in a given year and month (1-indexed month: 1=Jan, 12=Dec).
@@ -44,33 +45,34 @@ export function parseDateISO(dateStr: string): [number, number, number] {
 /**
  * Normalizes payment amount to a monthly financial commitment figure.
  * Supports weekly, bi-weekly, monthly, quarterly, semi-annually, yearly, daily.
+ * Uses roundCurrency to preserve paise without whole-rupee truncation.
  */
 export function calculateMonthlyEquivalent(amount: number, frequency: RecurrenceFrequency | string): number {
   if (amount <= 0 || isNaN(amount)) return 0;
   switch (frequency) {
     case 'weekly':
-      return Math.round((amount * 52) / 12);
+      return roundCurrency((amount * 52) / 12);
     case 'bi-weekly':
     case 'biweekly':
-      return Math.round((amount * 26) / 12);
+      return roundCurrency((amount * 26) / 12);
     case 'monthly':
-      return Math.round(amount);
+      return roundCurrency(amount);
     case 'quarterly':
-      return Math.round(amount / 3);
+      return roundCurrency(amount / 3);
     case 'semi-annually':
     case 'half-yearly':
-      return Math.round(amount / 6);
+      return roundCurrency(amount / 6);
     case 'yearly':
-      return Math.round(amount / 12);
+      return roundCurrency(amount / 12);
     case 'daily':
-      return Math.round((amount * 365) / 12);
+      return roundCurrency((amount * 365) / 12);
     default:
-      return Math.round(amount);
+      return roundCurrency(amount);
   }
 }
 
 /**
- * Checks whether a given due date has already been marked as paid in the logs.
+ * Checks whether a given due date has already been marked as paid or skipped in the logs.
  */
 export function isOccurrencePaid(
   paymentId: string,
@@ -78,7 +80,7 @@ export function isOccurrencePaid(
   logs: RecurringPaymentLog[]
 ): boolean {
   return logs.some(
-    log => log.recurringPaymentId === paymentId && log.dueDate === dueDate && Boolean(log.paidDate)
+    log => log.recurringPaymentId === paymentId && log.dueDate === dueDate && (Boolean(log.paidDate) || Boolean(log.skipped))
   );
 }
 
@@ -125,33 +127,37 @@ export function getPaymentSchedule(
   if (freq === 'monthly') {
     const targetDay = payment.dayOfMonth || startDay || 1;
 
-    // Check candidate for previous months to catch overdue payments (up to 6 months back)
-    for (let back = 6; back >= 1; back--) {
-      let prevM = refMonth - back;
-      let prevY = refYear;
-      while (prevM < 1) {
-        prevM += 12;
-        prevY -= 1;
-      }
-      const prevMonthDay = clampDayOfMonth(prevY, prevM, targetDay);
-      const prevMonthDueDate = formatDateISO(prevY, prevM, prevMonthDay);
-      const isPrevMonthPaid = isOccurrencePaid(payment.id, prevMonthDueDate, logs);
+    // Check candidate for previous month (1 month back) to catch immediately overdue payment
+    // Uniform with daily/weekly/bi-weekly which check the previous period, not an arbitrary 6-month backlog
+    let prevM = refMonth - 1;
+    let prevY = refYear;
+    if (prevM < 1) {
+      prevM = 12;
+      prevY -= 1;
+    }
+    const prevMonthDay = clampDayOfMonth(prevY, prevM, targetDay);
+    const prevMonthDueDate = formatDateISO(prevY, prevM, prevMonthDay);
+    const isPrevMonthPaid = isOccurrencePaid(payment.id, prevMonthDueDate, logs);
 
-      // If due date is on or after startDate and UNPAID, it is OVERDUE!
-      if (prevMonthDueDate >= payment.startDate && !isPrevMonthPaid) {
-        const daysDiff = Math.round(
-          (new Date(prevMonthDueDate).getTime() - new Date(todayStr).getTime()) / (1000 * 60 * 60 * 24)
-        );
-        if (!payment.endDate || prevMonthDueDate <= payment.endDate) {
-          const thisMonthDay = clampDayOfMonth(refYear, refMonth, targetDay);
-          const thisMonthDueDate = formatDateISO(refYear, refMonth, thisMonthDay);
-          return {
-            activeDueDate: prevMonthDueDate,
-            isOverdue: true,
-            daysDiff,
-            nextCycleDueDate: (!payment.endDate || thisMonthDueDate <= payment.endDate) ? thisMonthDueDate : null,
-          };
-        }
+    // If due date is on or after startDate and UNPAID, it is the active overdue payment
+    // Cap backlog by createdAt if no logs exist yet (avoids manufacturing past overdue months)
+    const minBacklogDate = (logs.length === 0 && payment.createdAt)
+      ? payment.createdAt.slice(0, 10)
+      : payment.startDate;
+
+    if (prevMonthDueDate >= payment.startDate && prevMonthDueDate >= minBacklogDate && !isPrevMonthPaid) {
+      const daysDiff = Math.round(
+        (new Date(prevMonthDueDate).getTime() - new Date(todayStr).getTime()) / (1000 * 60 * 60 * 24)
+      );
+      if (!payment.endDate || prevMonthDueDate <= payment.endDate) {
+        const thisMonthDay = clampDayOfMonth(refYear, refMonth, targetDay);
+        const thisMonthDueDate = formatDateISO(refYear, refMonth, thisMonthDay);
+        return {
+          activeDueDate: prevMonthDueDate,
+          isOverdue: true,
+          daysDiff,
+          nextCycleDueDate: (!payment.endDate || thisMonthDueDate <= payment.endDate) ? thisMonthDueDate : null,
+        };
       }
     }
 

@@ -77,6 +77,7 @@ const TransactionForm: React.FC<TransactionFormProps> = ({
     if (initialTransaction) {
       if (initialTransaction.type === 'credit') return 'income';
       if (
+        initialTransaction.kind === 'transfer' ||
         initialTransaction.paymentMethod === 'Bank Transfer' &&
         (initialTransaction.category.toLowerCase().includes('transfer') ||
           initialTransaction.category === 'Others' ||
@@ -244,6 +245,7 @@ const TransactionForm: React.FC<TransactionFormProps> = ({
  date: sanitizedDate,
  amount: finalAmount,
  type,
+ kind: activeTab === 'transfer' ? 'transfer' : undefined,
  category: category.trim(),
  paymentMethod,
  description: trimmedDesc,
@@ -565,6 +567,7 @@ const TransactionForm: React.FC<TransactionFormProps> = ({
  date: sanitizedDate,
  amount: finalAmount,
  type,
+ kind: activeTab === 'transfer' ? 'transfer' : undefined,
  category: category.trim(),
  paymentMethod,
  description: description.trim(),
@@ -577,6 +580,7 @@ const TransactionForm: React.FC<TransactionFormProps> = ({
  date: sanitizedDate,
  amount: finalAmount,
  type,
+ kind: activeTab === 'transfer' ? 'transfer' : undefined,
  category: category.trim(),
  paymentMethod,
  description: description.trim(),

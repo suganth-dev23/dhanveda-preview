@@ -130,7 +130,7 @@ export interface FinanceActionsContextType {
   // Categories CRUD
   addCategory: (cat: Omit<Category, 'id'>) => Category;
   updateCategory: (id: string, cat: Partial<Category>) => void;
-  deleteCategory: (id: string) => void;
+  deleteCategory: (id: string, reassignTo?: string) => void;
 
   // Budgets CRUD
   setBudgetForCategory: (category: string, monthlyLimit: number) => void;

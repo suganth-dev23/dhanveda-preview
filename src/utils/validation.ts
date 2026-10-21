@@ -1,6 +1,6 @@
 export const MAX_AMOUNT = 1_000_000_000; // 100 crore INR (1 billion)
 export const MIN_AMOUNT = 0.01;
-export const MIN_DATE_STRING = '2000-01-01';
+export const MIN_DATE_STRING = '1970-01-01';
 
 export function getMaxDateString(): string {
   const now = new Date();
@@ -12,15 +12,19 @@ export function roundMoney(n: number): number {
   return Math.round(n * 100) / 100;
 }
 
-export function isValidAmount(amount: any): boolean {
+export function isValidAmount(amount: any, allowZero: boolean = false): boolean {
   if (typeof amount !== 'number') {
     amount = parseFloat(amount);
   }
-  if (!Number.isFinite(amount) || amount <= 0 || amount > MAX_AMOUNT) {
+  if (!Number.isFinite(amount) || amount > MAX_AMOUNT) {
+    return false;
+  }
+  if (allowZero ? amount < 0 : amount <= 0) {
     return false;
   }
   const rounded = roundMoney(amount);
-  return rounded >= MIN_AMOUNT && rounded <= MAX_AMOUNT;
+  const min = allowZero ? 0 : MIN_AMOUNT;
+  return rounded >= min && rounded <= MAX_AMOUNT;
 }
 
 export function isValidDate(dateStr: any): boolean {

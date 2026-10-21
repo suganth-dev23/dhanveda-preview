@@ -28,7 +28,7 @@ import {
  INITIAL_RECURRING_PAYMENTS,
  INITIAL_RECURRING_PAYMENT_LOGS,
 } from '../utils/sampleData';
-import { getCurrentMonthYear, getTodayString, getMonthKey } from '../utils/date';
+import { getCurrentMonthYear, getTodayString, todayLocal, getMonthKey } from '../utils/date';
 import {
   normalizeTransaction,
   normalizeContact,
@@ -63,6 +63,7 @@ import {
 import { PERSIST_MODE } from '../constants/uiFlags';
 import { googleAuthService } from '../services/googleAuth';
 import { driveSyncService } from '../services/driveSync';
+import { getCustomAutoRules, saveCustomAutoRules } from '../utils/categoryMatcher';
 
 import {
   AppView,
@@ -249,7 +250,7 @@ export const FinanceProvider: React.FC<{ children: React.ReactNode }> = ({ child
       settlements: { current: settlementsRef.current, prevRef: prevSettlementsRef },
       recurringPayments: { current: recurringPaymentsRef.current, prevRef: prevRecurringPaymentsRef },
       recurringPaymentLogs: { current: recurringPaymentLogsRef.current, prevRef: prevRecurringPaymentLogsRef },
-      aiReports: { current: aiReports, prevRef: prevAiReportsRef },
+      aiReports: { current: aiReportsRef.current, prevRef: prevAiReportsRef },
     };
 
     const dirtyStores = Array.from(dirtyStoresRef.current);
@@ -279,7 +280,7 @@ export const FinanceProvider: React.FC<{ children: React.ReactNode }> = ({ child
         }
       } else if (sName === 'aiSettings') {
         try {
-          await saveSingleRecord('aiSettings', { ...aiSettings, id: 'current' });
+          await saveSingleRecord('aiSettings', { ...aiSettingsRef.current, id: 'current' });
           dirtyStoresRef.current.delete(sName);
         } catch {
           anyFailed = true;
@@ -293,7 +294,7 @@ export const FinanceProvider: React.FC<{ children: React.ReactNode }> = ({ child
     } else {
       scheduleRetry();
     }
-  }, [aiReports, aiSettings, scheduleRetry]);
+  }, [scheduleRetry]);
 
   useEffect(() => {
     retryAllDirtyRef.current = retryAllDirty;
@@ -326,7 +327,7 @@ export const FinanceProvider: React.FC<{ children: React.ReactNode }> = ({ child
         { name: 'settlements', current: settlementsRef.current, prevRef: prevSettlementsRef },
         { name: 'recurringPayments', current: recurringPaymentsRef.current, prevRef: prevRecurringPaymentsRef },
         { name: 'recurringPaymentLogs', current: recurringPaymentLogsRef.current, prevRef: prevRecurringPaymentLogsRef },
-        { name: 'aiReports', current: aiReports, prevRef: prevAiReportsRef },
+        { name: 'aiReports', current: aiReportsRef.current, prevRef: prevAiReportsRef },
       ];
 
       for (const config of storeConfigs) {
@@ -346,7 +347,15 @@ export const FinanceProvider: React.FC<{ children: React.ReactNode }> = ({ child
         }
       }
     }
-  }, [aiReports]);
+      if (dirtyStoresRef.current.has('emergencyFund')) {
+      saveSingleRecord('emergencyFund', { ...emergencyFundRef.current, id: 'current' }).catch(console.error);
+      dirtyStoresRef.current.delete('emergencyFund');
+    }
+    if (dirtyStoresRef.current.has('aiSettings')) {
+      saveSingleRecord('aiSettings', { ...aiSettingsRef.current, id: 'current' }).catch(console.error);
+      dirtyStoresRef.current.delete('aiSettings');
+    }
+  }, []);
 
   const flushPendingPersistence = useCallback(async () => {
     flushPendingSync();
@@ -521,25 +530,7 @@ export const FinanceProvider: React.FC<{ children: React.ReactNode }> = ({ child
       let { valid: validTx, invalidCount } = validateStoreRecords(dbTx, normalizeTransaction);
       totalInvalid += invalidCount;
 
-      // Auto-backfill demo dataset if historical months (May, Jun, Jul 2026) are missing
-      const isDemoDataset = validTx.some(t => t.id === 'tx-1' || t.id === 'tx-2');
-      const hasHistoricalTxs = validTx.some(t => t.id === 'tx-26' || t.id === 'tx-35' || t.id === 'tx-47');
-      if (isDemoDataset && !hasHistoricalTxs) {
-        const rebased = rebaseDemoData({
-          transactions: INITIAL_TRANSACTIONS,
-          emergencyFund: EMPTY_EMERGENCY_FUND,
-          investments: [],
-          dreams: [],
-          recurringPayments: [],
-          recurringPaymentLogs: [],
-        });
-        const existingIds = new Set(validTx.map(t => t.id));
-        const missingDemoTxs = rebased.transactions.filter(t => !existingIds.has(t.id));
-        if (missingDemoTxs.length > 0) {
-          validTx = [...validTx, ...missingDemoTxs].sort((a, b) => (b.date || '').localeCompare(a.date || ''));
-          saveAllToStore('transactions', validTx).catch(console.error);
-        }
-      }
+      // Demo dataset backfill removed for DB integrity (B8)
 
       setTransactions(validTx);
       transactionsRef.current = validTx;
@@ -655,33 +646,12 @@ export const FinanceProvider: React.FC<{ children: React.ReactNode }> = ({ child
  return () => {
  isMounted = false;
  };
- }, [flushPendingPersistence, reloadFromDB]);
+  }, [reloadFromDB]);
 
  // Sync methods
  const triggerSync = useCallback(async (_showFeedback = true): Promise<boolean> => {
  try {
     await flushPendingPersistence();
- // 1. Immediately flush all current in-memory React state to IndexedDB so driveSync reads 100% current data
- await Promise.all([
- saveAllToStore('transactions', transactionsRef.current),
- saveAllToStore('contacts', contactsRef.current),
- saveAllToStore('settlements', settlementsRef.current),
- saveAllToStore('categories', categoriesRef.current),
- saveAllToStore('budgets', budgetsRef.current),
- saveAllToStore('investments', investmentsRef.current),
- saveAllToStore('dreams', dreamsRef.current),
- saveAllToStore('recurringPayments', recurringPaymentsRef.current),
- saveAllToStore('recurringPaymentLogs', recurringPaymentLogsRef.current),
- saveAllToStore('aiReports', aiReportsRef.current || []),
- saveSingleRecord('emergencyFund', { ...emergencyFundRef.current, id: 'current' }),
- saveSingleRecord('userPreferences', {
-  id: 'general',
-  darkMode: darkModeRef.current,
-  notRecurringTxIds: Array.from(notRecurringTxIdsRef.current || []),
-  updatedAt: new Date().toISOString(),
- }),
- saveSingleRecord('aiSettings', { ...aiSettingsRef.current, id: 'current' }),
- ]);
 
  const ok = await driveSyncService.sync();
  if (ok) {
@@ -1330,7 +1300,7 @@ export const FinanceProvider: React.FC<{ children: React.ReactNode }> = ({ child
  id: `set-${Date.now()}-${Math.random().toString(36).substring(2, 6)}`,
  contactId,
  amount,
- date: date || now.split('T')[0],
+ date: date || todayLocal(),
  note: note || 'Settlement payment',
  createdAt: now,
  updatedAt: now,
@@ -1462,7 +1432,7 @@ export const FinanceProvider: React.FC<{ children: React.ReactNode }> = ({ child
  const newSettlement: SettlementRecord = {
  id: `set-${Date.now()}-${Math.random().toString(36).substring(2, 6)}`,
  contactId: targetEntry.contactId,
- date: now.split('T')[0],
+ date: todayLocal(),
  amount: targetEntry.amount,
  note: `Quick settlement for "${tx.description}"`,
  createdAt: now,
@@ -1590,7 +1560,7 @@ export const FinanceProvider: React.FC<{ children: React.ReactNode }> = ({ child
  const newSettlement: SettlementRecord = {
  id: `set-${Date.now()}-${Math.random().toString(36).substring(2, 6)}`,
  contactId: targetEntry.contactId,
- date: options.date || now.split('T')[0],
+ date: options.date || todayLocal(),
  amount: finalSettledAmount,
  note: options.note || `Settlement for "${tx.description}"`,
  createdAt: now,
@@ -1665,42 +1635,122 @@ export const FinanceProvider: React.FC<{ children: React.ReactNode }> = ({ child
  return newCat;
  };
 
- const updateCategory = (id: string, updated: Partial<Category>) => {
- if (updated.name) {
- const trimmedName = updated.name.trim();
- const duplicate = categoriesRef.current.find(
- c => c.id !== id && c.name.trim().toLowerCase() === trimmedName.toLowerCase()
- );
- if (duplicate) {
- console.warn(`[FinanceContext] Cannot rename: category "${trimmedName}" already exists.`);
- return;
- }
- }
- const now = new Date().toISOString();
- const cleanUpdated = {
- ...updated,
- ...(updated.name ? { name: updated.name.trim() } : {}),
- updatedAt: now,
- };
- categoriesRef.current = categoriesRef.current.map(c =>
- c.id === id ? { ...c, ...cleanUpdated } : c
- );
- setCategories(prev =>
- prev.map(c => (c.id === id ? { ...c, ...cleanUpdated } : c))
- );
- };
+  const updateCategory = (id: string, updated: Partial<Category>) => {
+    const existing = categoriesRef.current.find(c => c.id === id);
+    if (!existing) return;
 
- const deleteCategory = (id: string) => {
- const targetCat = categoriesRef.current.find(c => c.id === id);
- if (!targetCat) return;
- if (!targetCat.isCustom) {
- console.warn(`[FinanceContext] Default category "${targetCat.name}" cannot be deleted.`);
- return;
- }
- addTombstone('categories', id);
- categoriesRef.current = categoriesRef.current.filter(c => c.id !== id);
- setCategories(prev => prev.filter(c => c.id !== id));
- };
+    if (updated.name) {
+      const trimmedName = updated.name.trim();
+      const duplicate = categoriesRef.current.find(
+        c => c.id !== id && c.name.trim().toLowerCase() === trimmedName.toLowerCase()
+      );
+      if (duplicate) {
+        console.warn(`[FinanceContext] Cannot rename: category "${trimmedName}" already exists.`);
+        return;
+      }
+    }
+    const now = new Date().toISOString();
+    const cleanUpdated = {
+      ...updated,
+      ...(updated.name ? { name: updated.name.trim() } : {}),
+      updatedAt: now,
+    };
+    const oldName = existing.name;
+    const newName = cleanUpdated.name;
+
+    categoriesRef.current = categoriesRef.current.map(c =>
+      c.id === id ? { ...c, ...cleanUpdated } : c
+    );
+    setCategories(prev =>
+      prev.map(c => (c.id === id ? { ...c, ...cleanUpdated } : c))
+    );
+
+    // B3: Cascade rename to transactions, budgets, recurring payments, and custom rules
+    if (newName && newName.toLowerCase() !== oldName.toLowerCase()) {
+      const oldLower = oldName.toLowerCase();
+
+      const nextTxs = transactionsRef.current.map(t =>
+        (t.category || "").toLowerCase() === oldLower
+          ? { ...t, category: newName, updatedAt: now }
+          : t
+      );
+      transactionsRef.current = nextTxs;
+      setTransactions(nextTxs);
+
+      const nextBudgets = budgetsRef.current.map(b =>
+        (b.category || "").toLowerCase() === oldLower
+          ? { ...b, category: newName, updatedAt: now }
+          : b
+      );
+      budgetsRef.current = nextBudgets;
+      setBudgets(nextBudgets);
+
+      const nextRec = recurringPaymentsRef.current.map(rp =>
+        (rp.category || "").toLowerCase() === oldLower
+          ? { ...rp, category: newName, updatedAt: now }
+          : rp
+      );
+      recurringPaymentsRef.current = nextRec;
+      setRecurringPayments(nextRec);
+
+      try {
+        const rules = getCustomAutoRules();
+        let changed = false;
+        const updatedRules = rules.map(r => {
+          if ((r.category || "").toLowerCase() === oldLower) {
+            changed = true;
+            return { ...r, category: newName };
+          }
+          return r;
+        });
+        if (changed) saveCustomAutoRules(updatedRules);
+      } catch (err) {
+        console.error("Failed to update categoryMatcher rules on category rename:", err);
+      }
+    }
+  };
+
+  const deleteCategory = (id: string, reassignTo: string = "Others") => {
+    const targetCat = categoriesRef.current.find(c => c.id === id);
+    if (!targetCat) return;
+    if (!targetCat.isCustom) {
+      console.warn(`[FinanceContext] Default category "${targetCat.name}" cannot be deleted.`);
+      return;
+    }
+    const now = new Date().toISOString();
+    const oldLower = targetCat.name.toLowerCase();
+
+    addTombstone("categories", id);
+    categoriesRef.current = categoriesRef.current.filter(c => c.id !== id);
+    setCategories(prev => prev.filter(c => c.id !== id));
+
+    // B3: Reassign orphaned transactions to reassignTo
+    const nextTxs = transactionsRef.current.map(t =>
+      (t.category || "").toLowerCase() === oldLower
+        ? { ...t, category: reassignTo, updatedAt: now }
+        : t
+    );
+    transactionsRef.current = nextTxs;
+    setTransactions(nextTxs);
+
+    // Delete associated budget if any
+    const targetBudget = budgetsRef.current.find(b => (b.category || "").toLowerCase() === oldLower);
+    if (targetBudget) {
+      addTombstone("budgets", targetBudget.id);
+      const nextBudgets = budgetsRef.current.filter(b => b.id !== targetBudget.id);
+      budgetsRef.current = nextBudgets;
+      setBudgets(nextBudgets);
+    }
+
+    // Reassign recurring payments
+    const nextRec = recurringPaymentsRef.current.map(rp =>
+      (rp.category || "").toLowerCase() === oldLower
+        ? { ...rp, category: reassignTo, updatedAt: now }
+        : rp
+    );
+    recurringPaymentsRef.current = nextRec;
+    setRecurringPayments(nextRec);
+  };
 
  // Budget operations
  const setBudgetForCategory = (category: string, monthlyLimit: number) => {
@@ -1749,7 +1799,7 @@ export const FinanceProvider: React.FC<{ children: React.ReactNode }> = ({ child
  date?: string
  ) => {
  const now = new Date().toISOString();
- const today = date || now.split('T')[0];
+ const today = date || todayLocal();
  const newContribution = {
  id: `em-${Date.now()}`,
  date: today,
@@ -1795,7 +1845,7 @@ export const FinanceProvider: React.FC<{ children: React.ReactNode }> = ({ child
  // Investments operations
  const addInvestment = (invData: Omit<Investment, 'id' | 'lastUpdated'>): Investment => {
  const now = new Date().toISOString();
- const today = now.split('T')[0];
+ const today = todayLocal();
  const newInv: Investment = {
  ...invData,
  id: `inv-${Date.now()}`,
@@ -1820,7 +1870,7 @@ export const FinanceProvider: React.FC<{ children: React.ReactNode }> = ({ child
 
  const updateInvestment = (id: string, updated: Partial<Investment>) => {
  const now = new Date().toISOString();
- const today = now.split('T')[0];
+ const today = todayLocal();
  const mapInv = (i: Investment): Investment => {
  if (i.id !== id) return i;
  const invDelta = updated.investedAmount !== undefined ? updated.investedAmount - i.investedAmount : 0;
@@ -1866,7 +1916,7 @@ export const FinanceProvider: React.FC<{ children: React.ReactNode }> = ({ child
  ): DreamGoal => {
  const now = new Date().toISOString();
  const initialSaved = dreamData.initialSaved || 0;
- const today = now.split('T')[0];
+ const today = todayLocal();
  const newDream: DreamGoal = {
  id: `dream-${Date.now()}`,
  name: dreamData.name,
@@ -1912,7 +1962,7 @@ export const FinanceProvider: React.FC<{ children: React.ReactNode }> = ({ child
 
  const addDreamContribution = (dreamId: string, amount: number, note?: string, date?: string) => {
  const now = new Date().toISOString();
- const today = date || now.split('T')[0];
+ const today = date || todayLocal();
  const newContribution = {
  id: `dc-${Date.now()}`,
  date: today,
@@ -2479,10 +2529,9 @@ export const FinanceProvider: React.FC<{ children: React.ReactNode }> = ({ child
         setBudgets(validBudgets);
       }
       if (validEmergencyFund) {
-        const em = { ...validEmergencyFund, id: 'current' };
-        saveSingleRecord('emergencyFund', em).catch(console.error);
-        emergencyFundRef.current = em;
-        setEmergencyFund(em);
+        saveSingleRecord('emergencyFund', { ...validEmergencyFund, id: 'current' }).catch(console.error);
+        emergencyFundRef.current = validEmergencyFund;
+        setEmergencyFund(validEmergencyFund);
       }
       if (validatedStores.has('investments')) {
         const validInvs = validatedStores.get('investments')!;

@@ -77,6 +77,14 @@ export function getTodayString(): string {
   return `${year}-${month}-${day}`;
 }
 
+/**
+ * Returns today's date string (YYYY-MM-DD) in local time (IST).
+ * Standardized replacement for all toISOString().split('T')[0] occurrences.
+ */
+export function todayLocal(): string {
+  return getTodayString();
+}
+
 export function getCurrentMonthYear(): { month: number; year: number; monthName: string; key: string } {
   const now = new Date();
   const month = now.getMonth();
@@ -98,7 +106,13 @@ export function getCurrentDayOfMonth(): number {
 
 export function getDaysSinceDate(dateStr: string): number | null {
   if (!dateStr) return null;
-  const inceptionTime = Date.parse(dateStr);
+  let inceptionTime: number;
+  if (/^\d{4}-\d{2}-\d{2}$/.test(dateStr)) {
+    const [y, m, d] = dateStr.split('-').map(Number);
+    inceptionTime = new Date(y, m - 1, d).getTime();
+  } else {
+    inceptionTime = Date.parse(dateStr);
+  }
   if (Number.isNaN(inceptionTime)) return null;
   const nowMs = Date.now();
   return Math.max(1, (nowMs - inceptionTime) / (1000 * 60 * 60 * 24));
@@ -106,8 +120,12 @@ export function getDaysSinceDate(dateStr: string): number | null {
 
 export function getMonthKey(date: string | null | undefined): string {
   if (!date || typeof date !== 'string') return '';
-  if (/^\d{4}-\d{2}/.test(date)) {
-    return date.substring(0, 7);
+  const match = /^(\d{4})-(\d{1,2})/.exec(date);
+  if (match) {
+    const m = parseInt(match[2], 10);
+    if (m >= 1 && m <= 12) {
+      return `${match[1]}-${String(m).padStart(2, '0')}`;
+    }
   }
   return '';
 }
@@ -135,9 +153,13 @@ export function isDateInMonth(dateStr: string, yearMonthKey: string): boolean {
 }
 
 export function calculateMonthsDiff(startDate: string, endDate: string): number {
+  if (!startDate || !endDate) return 1;
   try {
     const start = new Date(startDate);
     const end = new Date(endDate);
+    if (isNaN(start.getTime()) || isNaN(end.getTime())) {
+      return 1;
+    }
     const diffTime = end.getTime() - start.getTime();
     const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
     return Math.max(1, Math.ceil(diffDays / 30.44));
@@ -180,4 +202,3 @@ export function sanitizeDateString(input: string): string | null {
 
   return null;
 }
-

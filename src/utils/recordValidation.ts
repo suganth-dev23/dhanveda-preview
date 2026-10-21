@@ -54,12 +54,13 @@ export function normalizeTransaction(raw: any): Transaction | null {
     typeof raw.createdAt === 'string' && raw.createdAt ? raw.createdAt : new Date().toISOString();
   const updatedAt = typeof raw.updatedAt === 'string' ? raw.updatedAt : createdAt;
   const description = typeof raw.description === 'string' ? raw.description : '';
-  const category = typeof raw.category === 'string' && raw.category.trim() ? raw.category.trim() : 'Other';
+  const category = typeof raw.category === 'string' && raw.category.trim() ? raw.category.trim() : 'Others';
   const paymentMethod = typeof raw.paymentMethod === 'string' && raw.paymentMethod.trim() ? raw.paymentMethod : 'Other';
   const source = raw.source === 'imported' ? 'imported' : 'manual';
   const person = typeof raw.person === 'string' && raw.person.trim() ? raw.person.trim() : undefined;
   const referenceId = typeof raw.referenceId === 'string' && raw.referenceId.trim() ? raw.referenceId.trim() : undefined;
   const tags = Array.isArray(raw.tags) ? raw.tags.filter((t: any) => typeof t === 'string') : undefined;
+  const kind = raw.kind === 'transfer' ? ('transfer' as const) : undefined;
 
   // Normalize splits if present
   let splitWith: SplitEntry[] | undefined = undefined;
@@ -116,6 +117,7 @@ export function normalizeTransaction(raw: any): Transaction | null {
     date,
     amount: roundMoney(amount),
     type,
+    kind,
     category,
     paymentMethod,
     description,

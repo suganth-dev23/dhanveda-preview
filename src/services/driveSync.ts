@@ -29,7 +29,7 @@ import {
 } from '../types/finance';
 import {
   getAllFromStore,
-  saveAllToStore,
+  persistDiff,
   getSingleRecord,
   saveSingleRecord,
   getTombstones,
@@ -76,6 +76,10 @@ export class DriveSyncService {
   private lastSyncedAt: string | null = null;
   private lastError: string | null = null;
   private cachedFileId: string | null = null;
+
+  public clearCache(): void {
+    this.cachedFileId = null;
+  }
   private syncListeners: Array<(isSyncing: boolean, lastSyncedAt: string | null, error: string | null) => void> = [];
 
   constructor() {
@@ -168,7 +172,7 @@ export class DriveSyncService {
     if (this.cachedFileId) return this.cachedFileId;
 
     const query = encodeURIComponent(`name = '${SYNC_FILE_NAME}' and trashed = false`);
-    const url = `${DRIVE_FILES_URL}?spaces=appDataFolder&q=${query}&fields=files(id,name,modifiedTime)`;
+    const url = `${DRIVE_FILES_URL}?spaces=appDataFolder&q=${query}&orderBy=createdTime%20asc&fields=files(id,name,modifiedTime)`;
 
     const res = await this.fetchWithRetry(url, {
       headers: {
@@ -199,7 +203,10 @@ export class DriveSyncService {
       },
     });
 
-    if (res.status === 404) return null;
+    if (res.status === 404) {
+      this.cachedFileId = null;
+      return null;
+    }
 
     if (!res.ok) {
       throw new Error(`Drive download failed with status ${res.status}: ${res.statusText}`);
@@ -219,7 +226,7 @@ export class DriveSyncService {
    */
   public async uploadSyncFile(payload: SyncPayload, token: string): Promise<string> {
     const fileId = await this.findSyncFile(token);
-    const content = JSON.stringify(payload, null, 2);
+    const content = JSON.stringify(payload);
 
     if (fileId) {
       // Update existing file
@@ -285,6 +292,30 @@ export class DriveSyncService {
    * 4. Save merged data to local IndexedDB
    * 5. Upload merged snapshot back to Drive
    */
+private mergeWithFreshLocal<T extends { id: string; updatedAt?: string }>(
+  mergedItems: T[],
+  freshItems: T[],
+  snapshotItems: T[]
+): T[] {
+  const snapshotMap = new Map(snapshotItems.map(item => [item.id, item]));
+  const mergedMap = new Map(mergedItems.map(item => [item.id, item]));
+
+  for (const fresh of freshItems) {
+    const snap = snapshotMap.get(fresh.id);
+    if (!snap) {
+      mergedMap.set(fresh.id, fresh);
+    } else {
+      const freshUpdated = fresh.updatedAt || '';
+      const snapUpdated = snap.updatedAt || '';
+      if (freshUpdated > snapUpdated) {
+        mergedMap.set(fresh.id, fresh);
+      }
+    }
+  }
+
+  return Array.from(mergedMap.values());
+}
+
   public async sync(): Promise<boolean> {
     if (this.syncInProgress) return false;
 
@@ -491,7 +522,7 @@ export class DriveSyncService {
 
       // Merge all multi-item stores
       const rawMergedTransactions = mergeArrayStore('transactions', localTransactions, remotePayload.stores.transactions || []);
-      const mergedTransactions = rawMergedTransactions.map(t => {
+      const mergedTransactions: Transaction[] = rawMergedTransactions.map(t => {
         let cleanSplits: any[] | undefined = undefined;
         if (Array.isArray(t.splitWith) && t.splitWith.length > 0) {
           cleanSplits = t.splitWith.map((s, idx) => ({
@@ -722,20 +753,72 @@ export class DriveSyncService {
       await this.uploadSyncFile(consolidatedPayload, token);
 
       // 5. Commit merged results to local IndexedDB only after remote upload succeeds
+      // Re-read fresh local stores to protect concurrent edits made while sync was in flight
+      const [
+        freshTransactions,
+        freshCategories,
+        freshBudgets,
+        freshInvestments,
+        freshDreams,
+        freshContacts,
+        freshSettlements,
+        freshAiReports,
+        freshRecurringPayments,
+        freshRecurringPaymentLogs,
+        freshEmergency,
+        freshPrefs,
+        freshAISettings,
+      ] = await Promise.all([
+        getAllFromStore<Transaction>('transactions'),
+        getAllFromStore<Category>('categories'),
+        getAllFromStore<Budget>('budgets'),
+        getAllFromStore<Investment>('investments'),
+        getAllFromStore<DreamGoal>('dreams'),
+        getAllFromStore<Contact>('contacts'),
+        getAllFromStore<SettlementRecord>('settlements'),
+        getAllFromStore<AIHealthReport>('aiReports'),
+        getAllFromStore<RecurringPayment>('recurringPayments'),
+        getAllFromStore<RecurringPaymentLog>('recurringPaymentLogs'),
+        getSingleRecord<EmergencyFund & { id: string }>('emergencyFund', 'current'),
+        getSingleRecord<UserPreferences>('userPreferences', 'general'),
+        getSingleRecord<AISettings & { id: string }>('aiSettings', 'current'),
+      ]);
+
+      const finalTransactions = this.mergeWithFreshLocal(mergedTransactions, freshTransactions, localTransactions);
+      const finalCategories = this.mergeWithFreshLocal(mergedCategories, freshCategories, localCategories);
+      const finalBudgets = this.mergeWithFreshLocal(mergedBudgets, freshBudgets, localBudgets);
+      const finalInvestments = this.mergeWithFreshLocal(mergedInvestments, freshInvestments, localInvestments);
+      const finalDreams = this.mergeWithFreshLocal(mergedDreams, freshDreams, localDreams);
+      const finalContacts = this.mergeWithFreshLocal(mergedContacts, freshContacts, localContacts);
+      const finalSettlements = this.mergeWithFreshLocal(mergedSettlements, freshSettlements, localSettlements);
+      const finalAiReports = this.mergeWithFreshLocal(mergedAiReports, freshAiReports, localAiReports);
+      const finalRecurringPayments = this.mergeWithFreshLocal(mergedRecurringPayments, freshRecurringPayments, localRecurringPayments);
+      const finalRecurringPaymentLogs = this.mergeWithFreshLocal(mergedRecurringPaymentLogs, freshRecurringPaymentLogs, localRecurringPaymentLogs);
+
+      const finalEmergency = freshEmergency && (!localEmergency || (freshEmergency.updatedAt || '') > (localEmergency.updatedAt || ''))
+        ? freshEmergency
+        : mergedEmergency;
+      const finalPrefs = freshPrefs && (!localPrefs || (freshPrefs.updatedAt || '') > (localPrefs.updatedAt || ''))
+        ? freshPrefs
+        : mergedPrefs;
+      const finalAISettings = freshAISettings && (!localAISettings || (freshAISettings.updatedAt || '') > (localAISettings.updatedAt || ''))
+        ? freshAISettings
+        : mergedAISettings;
+
       await Promise.all([
-        saveAllToStore('transactions', mergedTransactions),
-        saveAllToStore('categories', mergedCategories),
-        saveAllToStore('budgets', mergedBudgets),
-        saveAllToStore('investments', mergedInvestments),
-        saveAllToStore('dreams', mergedDreams),
-        saveAllToStore('contacts', mergedContacts),
-        saveAllToStore('settlements', mergedSettlements),
-        saveAllToStore('aiReports', mergedAiReports),
-        saveAllToStore('recurringPayments', mergedRecurringPayments),
-        saveAllToStore('recurringPaymentLogs', mergedRecurringPaymentLogs),
-        saveSingleRecord('emergencyFund', mergedEmergency),
-        saveSingleRecord('userPreferences', mergedPrefs),
-        saveSingleRecord('aiSettings', mergedAISettings),
+        persistDiff('transactions', freshTransactions, finalTransactions),
+        persistDiff('categories', freshCategories, finalCategories),
+        persistDiff('budgets', freshBudgets, finalBudgets),
+        persistDiff('investments', freshInvestments, finalInvestments),
+        persistDiff('dreams', freshDreams, finalDreams),
+        persistDiff('contacts', freshContacts, finalContacts),
+        persistDiff('settlements', freshSettlements, finalSettlements),
+        persistDiff('aiReports', freshAiReports, finalAiReports),
+        persistDiff('recurringPayments', freshRecurringPayments, finalRecurringPayments),
+        persistDiff('recurringPaymentLogs', freshRecurringPaymentLogs, finalRecurringPaymentLogs),
+        saveSingleRecord('emergencyFund', finalEmergency),
+        saveSingleRecord('userPreferences', finalPrefs),
+        saveSingleRecord('aiSettings', finalAISettings),
         saveTombstones(mergedTombstones),
       ]);
 

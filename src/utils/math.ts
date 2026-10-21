@@ -221,7 +221,7 @@ export function buildCashflowSeries(
     if (!bucket) continue;
 
     const amt = roundINR(tx.amount);
-    if (amt <= 0) continue;
+    if (amt <= 0 || tx.kind === 'transfer') continue;
 
     if (tx.type === 'credit') {
       bucket.inflow += amt;
@@ -456,7 +456,7 @@ export function buildMonthlyCalendarMatrix(
     const dStr = `${monthKey}-${String(d).padStart(2, '0')}`;
     const dayTxs = txByDate.get(dStr) || [];
     const out = dayTxs
-      .filter(t => t.type === 'debit')
+      .filter(t => t.type === 'debit' && t.kind !== 'transfer')
       .reduce((acc, t) => acc + roundINR(t.amount), 0);
     if (out > 0) dailyOutflows.push(out);
   }
@@ -509,6 +509,7 @@ export function buildMonthlyCalendarMatrix(
     let inflow = 0;
     let outflow = 0;
     for (const tx of dayTxs) {
+      if (tx.kind === 'transfer') continue;
       const amt = roundINR(tx.amount);
       if (tx.type === 'credit') inflow += amt;
       else if (tx.type === 'debit') outflow += amt;

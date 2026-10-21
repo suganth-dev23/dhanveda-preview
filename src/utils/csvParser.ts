@@ -5,7 +5,7 @@ import { parseINR } from './currency';
 import { isValidAmount, isValidDate, roundMoney } from './validation';
 
 /**
- * Normalize date strings into YYYY-MM-DD
+ * Normalize date strings into YYYY-MM-DD or return null if blank/unparseable.
  * Supports:
  * - DD/MM/YYYY, DD-MM-YYYY, DD.MM.YYYY, DD/MM/YY, DD-MM-YY
  * - DD-MMM-YYYY, DD MMM YYYY, DD-MMM-YY, DD/MMM/YYYY (e.g. 15-Aug-2026, 15 Aug 2026, 15-AUG-26)
@@ -13,10 +13,9 @@ import { isValidAmount, isValidDate, roundMoney } from './validation';
  * - YYYY-MM-DD, YYYY/MM/DD
  * - Timestamps e.g. 2026-01-01T10:00:00 or 01/01/2026 14:30:00
  */
-export function normalizeDate(rawDate: string): string {
-  if (!rawDate) {
-    const d = new Date();
-    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+export function normalizeDate(rawDate: string): string | null {
+  if (!rawDate || !rawDate.trim()) {
+    return null;
   }
 
   const clean = String(rawDate).trim();
@@ -24,7 +23,13 @@ export function normalizeDate(rawDate: string): string {
   // Already YYYY-MM-DD or YYYY/MM/DD or YYYY.MM.DD
   const ymdMatch = clean.match(/^(\d{4})[./-](\d{1,2})[./-](\d{1,2})/);
   if (ymdMatch) {
-    return `${ymdMatch[1]}-${ymdMatch[2].padStart(2, '0')}-${ymdMatch[3].padStart(2, '0')}`;
+    const _y = parseInt(ymdMatch[1], 10);
+    const m = parseInt(ymdMatch[2], 10);
+    const d = parseInt(ymdMatch[3], 10);
+    if (m >= 1 && m <= 12 && d >= 1 && d <= 31) {
+      return `${ymdMatch[1]}-${ymdMatch[2].padStart(2, '0')}-${ymdMatch[3].padStart(2, '0')}`;
+    }
+    return null;
   }
 
   // DD/MM/YYYY, DD-MM-YYYY, DD.MM.YYYY or MM/DD/YYYY or 2-digit year
@@ -41,7 +46,12 @@ export function normalizeDate(rawDate: string): string {
       month = dmyMatch[1].padStart(2, '0');
       day = dmyMatch[2].padStart(2, '0');
     }
-    return `${year}-${month}-${day}`;
+    const mNum = parseInt(month, 10);
+    const dNum = parseInt(day, 10);
+    if (mNum >= 1 && mNum <= 12 && dNum >= 1 && dNum <= 31) {
+      return `${year}-${month}-${day}`;
+    }
+    return null;
   }
 
   const monthMap: Record<string, string> = {
@@ -54,35 +64,47 @@ export function normalizeDate(rawDate: string): string {
   if (dMmmYMatch) {
     const day = dMmmYMatch[1].padStart(2, '0');
     const mStr = dMmmYMatch[2].toLowerCase().substring(0, 3);
-    const month = monthMap[mStr] || '01';
+    const month = monthMap[mStr];
+    if (!month) return null; // Reject unknown months like "Foo"
     let year = dMmmYMatch[3];
     if (year.length === 2) year = `20${year}`;
-    return `${year}-${month}-${day}`;
+    const dNum = parseInt(day, 10);
+    if (dNum >= 1 && dNum <= 31) {
+      return `${year}-${month}-${day}`;
+    }
+    return null;
   }
 
   // MMM DD YYYY (e.g. Jan 01 2026 or Jan 01, 2026 01:30 PM)
   const mmmDYMatch = clean.match(/^([A-Za-z]{3,9})[-/\s.]+(\d{1,2})[,\s]+(\d{2,4})/);
   if (mmmDYMatch) {
     const mStr = mmmDYMatch[1].toLowerCase().substring(0, 3);
-    const month = monthMap[mStr] || '01';
+    const month = monthMap[mStr];
+    if (!month) return null;
     const day = mmmDYMatch[2].padStart(2, '0');
     let year = mmmDYMatch[3];
     if (year.length === 2) year = `20${year}`;
-    return `${year}-${month}-${day}`;
+    const dNum = parseInt(day, 10);
+    if (dNum >= 1 && dNum <= 31) {
+      return `${year}-${month}-${day}`;
+    }
+    return null;
   }
 
-  // Fallback try Date.parse
+  // Fallback try Date.parse - only if it produces valid date and is not obviously garbage
   try {
     const parsed = new Date(clean);
-    if (!isNaN(parsed.getTime())) {
-      return `${parsed.getFullYear()}-${String(parsed.getMonth() + 1).padStart(2, '0')}-${String(parsed.getDate()).padStart(2, '0')}`;
+    if (!isNaN(parsed.getTime()) && !/^[A-Za-z\s]+$/.test(clean)) {
+      const y = parsed.getFullYear();
+      const m = String(parsed.getMonth() + 1).padStart(2, '0');
+      const d = String(parsed.getDate()).padStart(2, '0');
+      return `${y}-${m}-${d}`;
     }
   } catch {
     // ignore
   }
 
-  const today = new Date();
-  return `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`;
+  return null;
 }
 
 export interface CSVParseResult {
@@ -93,124 +115,99 @@ export interface CSVParseResult {
 }
 
 /**
- * Intelligent multi-pass CSV statement parser with automatic header row detection
+ * Intelligent multi-pass CSV statement parser with automatic header row detection.
+ * Accepts either a File object or raw CSV string content.
  */
-export async function parseCSVStatement(file: File, customRules?: AutoRule[]): Promise<CSVParseResult> {
-  const fileText = await file.text();
+export async function parseCSVStatement(
+  fileOrText: File | string,
+  customRules?: AutoRule[]
+): Promise<CSVParseResult> {
+  const fileText = typeof fileOrText === 'string' ? fileOrText : await fileOrText.text();
   const errors: string[] = [];
   const transactions: StagedTransaction[] = [];
   const rules = customRules ?? getCustomAutoRules();
 
   const cleanText = (fileText || '').replace(/^\uFEFF/, '').trim();
-
   if (!cleanText) {
-    return {
-      transactions: [],
-      totalRows: 0,
-      parsedRows: 0,
-      errors: ['The selected CSV file is empty.'],
-    };
+    return { transactions: [], totalRows: 0, parsedRows: 0, errors: ['File is empty.'] };
   }
 
-  // Parse raw 2D array without expecting row 0 to be the header
-  const parseResult = Papa.parse<string[]>(cleanText, {
+  const parsedCSV = Papa.parse(cleanText, {
     skipEmptyLines: 'greedy',
+    header: false,
     dynamicTyping: false,
   });
 
-  const rawRows = parseResult.data;
-  if (!rawRows || rawRows.length === 0) {
-    return {
-      transactions: [],
-      totalRows: 0,
-      parsedRows: 0,
-      errors: ['No tabular data could be read from this CSV file.'],
-    };
+  const rawRows = (parsedCSV.data as string[][]).filter(
+    row => Array.isArray(row) && row.some(cell => String(cell).trim().length > 0)
+  );
+
+  if (rawRows.length === 0) {
+    return { transactions: [], totalRows: 0, parsedRows: 0, errors: ['No valid rows found in file.'] };
   }
 
-  // Header keyword patterns for Indian & global bank statements
-  const datePatterns = [/date/i, /txn.*dt/i, /trans.*dt/i, /value.*dt/i, /posting.*dt/i, /tran.*dt/i, /^dt$/i, /time/i];
-  const descPatterns = [/narration/i, /description/i, /particular/i, /remark/i, /detail/i, /merchant/i, /payee/i, /paid to/i, /transaction details/i, /note/i, /info/i, /name/i, /party/i];
-  const debitPatterns = [/withdrawal/i, /debit/i, /\bdr\b/i, /paid out/i, /expense/i, /spent/i];
-  const creditPatterns = [/deposit/i, /credit/i, /\bcr\b/i, /paid in/i, /income/i, /received/i];
-  const amountPatterns = [/^amount/i, /txn.*amount/i, /trans.*amount/i, /net.*amount/i, /sum/i, /inr/i, /total/i];
-  const typePatterns = [/^type$/i, /cr\/dr/i, /dr\/cr/i, /txn.*type/i, /d\/c/i, /c\/d/i];
-  const refPatterns = [/ref/i, /chq/i, /cheque/i, /utr/i, /txn.*id/i, /rrn/i, /reference/i, /id/i];
+  // Multi-pass Header Row Detection: Find the row that best matches known banking column labels
+  const datePatterns = /\b(date|txn date|value date|tran date|trans date|posting date|transaction date)\b/i;
+  const descPatterns = /\b(narration|description|particulars|details|remark|remarks|payee|memo|transaction details)\b/i;
+  const withdrawalPatterns = /\b(debit|withdrawal|dr|paid out|expense|dr amt|debit amount|withdrawn|spent)\b/i;
+  const depositPatterns = /\b(credit|deposit|cr|paid in|income|cr amt|credit amount|received)\b/i;
+  const amountPatterns = /\b(amount|txn amount|transaction amount|net amount|inr)\b/i;
+  const refPatterns = /\b(ref|chq|cheque|utr|reference|txn id|ref no|transaction id)\b/i;
 
-  // 1. Locate the true header row in the first 35 rows
   let headerRowIndex = -1;
-  let maxScore = 0;
-
-  for (let r = 0; r < Math.min(rawRows.length, 35); r++) {
-    const row = rawRows[r];
-    if (!Array.isArray(row) || row.length === 0) continue;
-
-    let score = 0;
-    let hasDate = false;
-    let hasAmount = false;
-    let hasDesc = false;
-
-    row.forEach(cell => {
-      const c = String(cell || '').trim();
-      if (!c) return;
-
-      if (datePatterns.some(p => p.test(c))) {
-        score += 3;
-        hasDate = true;
-      }
-      if (descPatterns.some(p => p.test(c))) {
-        score += 2;
-        hasDesc = true;
-      }
-      if (debitPatterns.some(p => p.test(c)) || creditPatterns.some(p => p.test(c)) || amountPatterns.some(p => p.test(c))) {
-        score += 3;
-        hasAmount = true;
-      }
-      if (typePatterns.some(p => p.test(c)) || refPatterns.some(p => p.test(c))) {
-        score += 1;
-      }
-    });
-
-    if (hasDate && (hasAmount || hasDesc)) {
-      score += 4;
-    }
-
-    if (score > maxScore && score >= 4) {
-      maxScore = score;
-      headerRowIndex = r;
-    }
-  }
-
-  // Column index finders
   let dateColIdx = -1;
   let descColIdx = -1;
   let debitColIdx = -1;
   let creditColIdx = -1;
   let amountColIdx = -1;
-  let typeColIdx = -1;
   let refColIdx = -1;
 
-  let startDataRow = 0;
+  for (let r = 0; r < Math.min(rawRows.length, 25); r++) {
+    const row = rawRows[r];
+    let dIdx = -1;
+    let descIdx = -1;
+    let drIdx = -1;
+    let crIdx = -1;
+    let amtIdx = -1;
+    let rIdx = -1;
 
-  if (headerRowIndex !== -1) {
-    const headers = rawRows[headerRowIndex].map(h => String(h || '').trim());
-    startDataRow = headerRowIndex + 1;
+    for (let c = 0; c < row.length; c++) {
+      const header = String(row[c] || '').trim();
+      if (!header) continue;
 
-    const findCol = (patterns: RegExp[]): number => {
-      return headers.findIndex(h => patterns.some(p => p.test(h)));
-    };
+      if (datePatterns.test(header) && dIdx === -1) {
+        dIdx = c;
+      } else if (descPatterns.test(header) && descIdx === -1) {
+        descIdx = c;
+      } else if (withdrawalPatterns.test(header) && drIdx === -1) {
+        drIdx = c;
+      } else if (depositPatterns.test(header) && crIdx === -1) {
+        crIdx = c;
+      } else if (amountPatterns.test(header) && amtIdx === -1) {
+        amtIdx = c;
+      } else if (refPatterns.test(header) && rIdx === -1) {
+        rIdx = c;
+      }
+    }
 
-    dateColIdx = findCol(datePatterns);
-    descColIdx = findCol(descPatterns);
-    debitColIdx = findCol(debitPatterns);
-    creditColIdx = findCol(creditPatterns);
-    amountColIdx = findCol(amountPatterns);
-    typeColIdx = findCol(typePatterns);
-    refColIdx = findCol(refPatterns);
-  } else {
-    // Fallback: Pattern-based column discovery
-    startDataRow = 0;
-    const colCount = Math.max(...rawRows.slice(0, 15).map(r => r.length));
+    // A valid header row must contain at least a Date column and either Description or an Amount/Debit/Credit column
+    if (dIdx !== -1 && (descIdx !== -1 || drIdx !== -1 || crIdx !== -1 || amtIdx !== -1)) {
+      headerRowIndex = r;
+      dateColIdx = dIdx;
+      descColIdx = descIdx;
+      debitColIdx = drIdx;
+      creditColIdx = crIdx;
+      amountColIdx = amtIdx;
+      refColIdx = rIdx;
+      break;
+    }
+  }
+
+  const startDataRow = headerRowIndex !== -1 ? headerRowIndex + 1 : 0;
+
+  // Fallback: If no header found, inspect the first 25 rows to identify columns by data heuristics
+  if (headerRowIndex === -1) {
+    const colCount = Math.max(...rawRows.map(r => r.length));
     const numericCols: number[] = [];
 
     // Test columns across rows to see which column has dates, numbers, strings
@@ -227,7 +224,9 @@ export async function parseCSVStatement(file: File, customRules?: AutoRule[]): P
         if (/(\d{1,2}[./-]\d{1,2}[./-]\d{2,4}|\d{1,2}[-\s.][A-Za-z]{3,9}[-\s.]\d{2,4}|\d{4}-\d{2}-\d{2})/.test(cell)) {
           dateMatches++;
         }
-        if (Math.abs(parseINR(cell)) > 0) {
+        // Strict numeric check to avoid classifying narrations with numbers like "UPI/123/x" as amounts
+        const isLikelyNumeric = /^[+-]?(₹|rs\.?|inr)?\s*[\d,]+(\.\d+)?\s*(dr|cr)?$/i.test(cell);
+        if (isLikelyNumeric && Math.abs(parseINR(cell)) > 0) {
           numberMatches++;
         }
       }
@@ -264,64 +263,37 @@ export async function parseCSVStatement(file: File, customRules?: AutoRule[]): P
       const rawDesc = descColIdx !== -1 ? String(row[descColIdx] || '').trim() : row.join(' ').trim();
       const rawRef = refColIdx !== -1 ? String(row[refColIdx] || '').trim() : '';
 
-      // Skip lines with no date or text (summary/footer rows)
-      if (!rawDate && !rawDesc) continue;
-
-      let type: TransactionType = 'debit';
       let amount = 0;
+      let type: TransactionType = 'debit';
 
-      const rawDebitStr = debitColIdx !== -1 ? String(row[debitColIdx] || '').trim() : '';
-      const rawCreditStr = creditColIdx !== -1 ? String(row[creditColIdx] || '').trim() : '';
+      // Parse dual column withdrawal/deposit
+      if (debitColIdx !== -1 || creditColIdx !== -1) {
+        const rawDebit = debitColIdx !== -1 ? row[debitColIdx] : '';
+        const rawCredit = creditColIdx !== -1 ? row[creditColIdx] : '';
+        const debitVal = parseINR(rawDebit || '');
+        const creditVal = parseINR(rawCredit || '');
 
-      const debitVal = rawDebitStr ? parseINR(rawDebitStr) : 0;
-      const creditVal = rawCreditStr ? parseINR(rawCreditStr) : 0;
-
-      const absDebit = Math.abs(debitVal);
-      const absCredit = Math.abs(creditVal);
-
-      if (debitColIdx !== -1 && creditColIdx !== -1) {
-        if (absCredit > 0 && absDebit === 0) {
+        if (Math.abs(creditVal) > 0) {
+          amount = Math.abs(creditVal);
           type = 'credit';
-          amount = absCredit;
-        } else if (absDebit > 0 && absCredit === 0) {
+        } else if (Math.abs(debitVal) > 0) {
+          amount = Math.abs(debitVal);
           type = 'debit';
-          amount = absDebit;
-        } else if (absCredit > 0 && absDebit > 0) {
-          if (absCredit >= absDebit) {
-            type = 'credit';
-            amount = absCredit;
-          } else {
-            type = 'debit';
-            amount = absDebit;
-          }
         }
       } else if (amountColIdx !== -1) {
-        const rawAmtCell = String(row[amountColIdx] || '').trim();
-        const parsedAmt = parseINR(rawAmtCell);
-        amount = Math.abs(parsedAmt);
+        // Single Amount column with possible +/- or Cr/Dr in text
+        const rawAmount = row[amountColIdx];
+        const parsed = parseINR(rawAmount || '');
+        if (Math.abs(parsed) > 0) {
+          amount = Math.abs(parsed);
+          // If parsed is negative, it's a debit
+          type = parsed < 0 ? 'debit' : 'credit';
 
-        if (parsedAmt < 0) {
-          type = 'debit';
-        } else if (/\b(cr|credit)\b/i.test(rawAmtCell)) {
-          type = 'credit';
-        } else if (/\b(dr|debit)\b/i.test(rawAmtCell)) {
-          type = 'debit';
-        } else if (typeColIdx !== -1) {
-          const tStr = String(row[typeColIdx] || '').toLowerCase().trim();
-          if (tStr.includes('cr') || tStr.includes('credit') || tStr.includes('deposit') || tStr.includes('income')) {
-            type = 'credit';
-          } else {
+          // Additional check for Dr/Cr in the amount string or adjacent text
+          if (/\b(dr|debit)\b/i.test(String(rawAmount))) {
             type = 'debit';
-          }
-        } else {
-          // Check for CR / DR hints in description or line
-          const fullLine = row.join(' ').toLowerCase();
-          if (/\b(refund|salary|cashback|interest|dividend)\b/.test(fullLine)) {
+          } else if (/\b(cr|credit)\b/i.test(String(rawAmount))) {
             type = 'credit';
-          } else if (/\b(cr|credit)\b/.test(fullLine) && !/\b(credit\s*card|cc\s*payment|cc\s*bill)\b/.test(fullLine)) {
-            type = 'credit';
-          } else {
-            type = 'debit';
           }
         }
       } else {
@@ -345,7 +317,7 @@ export async function parseCSVStatement(file: File, customRules?: AutoRule[]): P
         continue;
       }
 
-      // Validate date loosely
+      // Validate date
       const normalizedDate = normalizeDate(rawDate);
       if (!normalizedDate || normalizedDate === 'NaN-NaN-NaN' || !isValidDate(normalizedDate)) {
         errors.push(`Row ${r + 1}: Skipped row with invalid date "${rawDate}"`);
@@ -370,21 +342,20 @@ export async function parseCSVStatement(file: File, customRules?: AutoRule[]): P
         amount: roundMoney(amount),
         type: finalType,
         category: categoryMatch.category,
-        paymentMethod,
         description: cleanDescription,
+        paymentMethod,
+        referenceId: rawRef || undefined,
         source: 'imported',
-        referenceId: rawRef ? rawRef.trim() : undefined,
         selected: true,
-        originalRawRow: row,
       });
-    } catch (err: any) {
-      errors.push(`Row ${r + 1}: ${err?.message || 'Failed to parse row'}`);
+    } catch {
+      errors.push(`Row ${r + 1}: Failed to parse transaction row.`);
     }
   }
 
   return {
     transactions,
-    totalRows: rawRows.length,
+    totalRows: rawRows.length - startDataRow,
     parsedRows: transactions.length,
     errors,
   };

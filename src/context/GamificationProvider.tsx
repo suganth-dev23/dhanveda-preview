@@ -53,6 +53,10 @@ export const GamificationProvider: React.FC<{ children: React.ReactNode }> = ({ 
  } = useFinance();
 
  const [streak, setStreak] = useState<StreakData>(INITIAL_STREAK);
+  const streakRef = useRef<StreakData>(INITIAL_STREAK);
+  useLayoutEffect(() => {
+    streakRef.current = streak;
+  }, [streak]);
  const [unlockedBadgeIds, setUnlockedBadgeIds] = useState<string[]>([]);
  const [unlockedBadgeDates, setUnlockedBadgeDates] = useState<Record<string, string>>({});
  const [totalXP, setTotalXP] = useState<number>(0);
@@ -73,7 +77,9 @@ export const GamificationProvider: React.FC<{ children: React.ReactNode }> = ({ 
  try {
  const saved = await getGamificationState();
  if (saved) {
- setStreak(saved.streak || INITIAL_STREAK);
+ const loadedStreak = saved.streak || INITIAL_STREAK;
+        streakRef.current = loadedStreak;
+        setStreak(loadedStreak);
  const ids = saved.unlockedBadgeIds || [];
  const dates = saved.unlockedBadgeDates || {};
  const xp = saved.totalXP || 0;
@@ -116,53 +122,53 @@ export const GamificationProvider: React.FC<{ children: React.ReactNode }> = ({ 
  }, []);
 
  // Record daily activity & streak calculation
- const recordActivity = useCallback(() => {
- const today = getTodayString();
- setStreak(prev => {
- if (prev.lastActiveDate === today) {
- return prev;
- }
+  const recordActivity = useCallback(() => {
+    const today = getTodayString();
+    const prev = streakRef.current;
+    if (prev.lastActiveDate === today) {
+      return;
+    }
 
- let nextStreak = prev.currentStreak;
- let continued = false;
- let broken = false;
+    let nextStreak = prev.currentStreak;
+    let continued = false;
+    let broken = false;
 
- if (!prev.lastActiveDate || prev.currentStreak === 0) {
- nextStreak = 1;
- continued = true;
- } else {
- const last = new Date(prev.lastActiveDate);
- const curr = new Date(today);
- const diffDays = Math.round((curr.getTime() - last.getTime()) / (1000 * 60 * 60 * 24));
+    if (!prev.lastActiveDate || prev.currentStreak === 0) {
+      nextStreak = 1;
+      continued = true;
+    } else {
+      const last = new Date(prev.lastActiveDate);
+      const curr = new Date(today);
+      const diffDays = Math.round((curr.getTime() - last.getTime()) / (1000 * 60 * 60 * 24));
 
- if (diffDays === 1) {
- nextStreak += 1;
- continued = true;
- } else if (diffDays > 1) {
- nextStreak = 1;
- broken = true;
- } else if (diffDays <= 0) {
- nextStreak = prev.currentStreak;
- }
- }
+      if (diffDays === 1) {
+        nextStreak += 1;
+        continued = true;
+      } else if (diffDays > 1) {
+        nextStreak = 1;
+        broken = true;
+      } else if (diffDays <= 0) {
+        nextStreak = prev.currentStreak;
+      }
+    }
 
- const updatedStreak: StreakData = {
- currentStreak: nextStreak,
- longestStreak: Math.max(nextStreak, prev.longestStreak),
- lastActiveDate: today,
- };
+    const updatedStreak: StreakData = {
+      currentStreak: nextStreak,
+      longestStreak: Math.max(nextStreak, prev.longestStreak),
+      lastActiveDate: today,
+    };
 
- persistState(updatedStreak, unlockedBadgeIdsRef.current, unlockedBadgeDatesRef.current, totalXPRef.current);
+    streakRef.current = updatedStreak;
+    setStreak(updatedStreak);
 
- if (continued && nextStreak > 1) {
- emitFinanceEvent({ type: 'streak_continued', days: nextStreak });
- } else if (broken) {
- emitFinanceEvent({ type: 'streak_broken' });
- }
+    persistState(updatedStreak, unlockedBadgeIdsRef.current, unlockedBadgeDatesRef.current, totalXPRef.current);
 
- return updatedStreak;
- });
- }, [persistState, emitFinanceEvent]);
+    if (continued && nextStreak > 1) {
+      emitFinanceEvent({ type: 'streak_continued', days: nextStreak });
+    } else if (broken) {
+      emitFinanceEvent({ type: 'streak_broken' });
+    }
+  }, [persistState, emitFinanceEvent]);
 
  // Context for badge evaluation
  const evaluationContext = useMemo<BadgeEvaluationContext>(() => ({

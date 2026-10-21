@@ -75,6 +75,7 @@ export interface Transaction {
   date: string; // YYYY-MM-DD
   amount: number;
   type: TransactionType;
+  kind?: 'transfer';
   category: string;
   paymentMethod: PaymentMethod;
   description: string;
@@ -113,6 +114,7 @@ export interface RecurringPaymentLog {
   paidDate?: string;          // YYYY-MM-DD when paid, undefined if pending/overdue
   amount: number;             // actual amount paid
   linkedTransactionId?: string; // ID of created/matched Transaction
+  skipped?: boolean;          // whether this occurrence was intentionally skipped
   createdAt: string;
   updatedAt: string;
 }

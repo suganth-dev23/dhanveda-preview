@@ -54,21 +54,21 @@ export function flagDuplicates(
     }
 
     // 2. Check Date + Amount + Type exact match against existing
-    const exactMatch = existingList.find(e => {
+    const matchingCandidates = existingList.filter(e => {
       const dateMatch = e.date === staged.date;
       const amountMatch = Math.abs(e.amount - staged.amount) < 0.01;
       const typeMatch = e.type === staged.type;
       return dateMatch && amountMatch && typeMatch;
     });
 
-    if (exactMatch) {
-      const desc1 = (exactMatch.description || '').trim().toLowerCase();
+    for (const match of matchingCandidates) {
+      const desc1 = (match.description || '').trim().toLowerCase();
       const desc2 = (staged.description || '').trim().toLowerCase();
       const similarity = stringSimilarity(desc1, desc2);
 
       // Require high text similarity or exact match, not just identical category
       if (similarity >= 0.65 || (desc1.length > 0 && desc1 === desc2)) {
-        const descPreview = (exactMatch.description || 'Transaction').slice(0, 25);
+        const descPreview = (match.description || 'Transaction').slice(0, 25);
         return {
           ...staged,
           isDuplicate: true,
